@@ -1,0 +1,18 @@
+pre-commit
+
+# formatting
+black
+isort
+
+# testing
+pylint == 2.5.2
+mypy == 0.770
+flake8 == 3.8.2
+flake8-bugbear == 20.1.4
+flake8-docstrings == 1.5.0
+pytest-pylint == 0.17.0
+pytest-flake8 == 1.0.6
+pytest-mypy == 0.6.2
+
+# generating requirements
+pipreqs
