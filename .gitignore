@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# saved files while running
+save/*
+
+# caches
+wandb

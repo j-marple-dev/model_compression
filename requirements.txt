@@ -1,5 +1,7 @@
-torch == 1.5.0
+# use conda install
+torch == 1.5.0 
 torchvision == 0.6.0
-numpy == 1.18.1
+progressbar2 == 3.51.3
 
+# use pip install
 wandb
