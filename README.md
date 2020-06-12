@@ -19,6 +19,16 @@ git clone https://github.com/Curt-Park/model_compression.git
 cd model_compression
 ```
 
+###### Prerequisites
+
+1. Install PyTorch 1.5.0 and Torchvision 0.6.0 (See the following official instruction).
+
+https://pytorch.org/get-started/previous-versions/
+
+2. Install `progressbar2`
+
+`$ conda install -c conda-forge progressbar2`
+
 ###### For users
 Install packages required to execute the code. Just type:
 ```
@@ -26,6 +36,7 @@ make dep
 ```
 
 ###### For developers
+
 If you want to modify code you should configure formatting and linting settings. It automatically runs formatting and linting when you commit the code. Just type:
 ```
 make dev

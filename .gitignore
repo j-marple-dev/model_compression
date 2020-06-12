@@ -133,3 +133,4 @@ save/*
 
 # caches
 wandb
+.DS_Store

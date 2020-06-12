@@ -6,6 +6,7 @@
 """
 
 
+import logging
 import os
 from typing import Any, Dict
 
@@ -19,11 +20,16 @@ class Pruner:
     """Pruner for models."""
 
     def __init__(
-        self, trainer: Trainer, config: Dict[str, Any], dir_prefix: str
+        self,
+        trainer: Trainer,
+        config: Dict[str, Any],
+        dir_prefix: str,
+        logger: logging.Logger,
     ) -> None:
         """Initialize."""
         self.trainer = trainer
         self.config = config
+        self.logger = logger
 
         # create a dir for checkpoints
         ckpnt_dir = f"{self.config['N_PRUNING_ITER']}_times_pruning"
@@ -37,7 +43,7 @@ class Pruner:
         params_all = utils.get_weight_tuple(self.trainer.model, bias=True)
 
         for i in range(self.config["N_PRUNING_ITER"]):
-            print(f"\n[INFO] Pruning Iter: [{i} | {self.config['N_PRUNING_ITER']-1}]")
+            self.logger.info(f"Pruning Iter: [{i} | {self.config['N_PRUNING_ITER']-1}]")
             # prune
             prune.global_unstructured(
                 params_to_prune,
@@ -52,7 +58,7 @@ class Pruner:
             self.trainer.run({"sparsity": sparsity})
 
             # logging
-            print(
-                f"[INFO] Pruning epoch: [{i} | {self.config['N_PRUNING_ITER']-1}] "
+            self.logger.info(
+                f"Pruning epoch: [{i} | {self.config['N_PRUNING_ITER']-1}] "
                 f"Sparsity: {sparsity:.2f} Best acc: {self.trainer.best_acc}"
             )

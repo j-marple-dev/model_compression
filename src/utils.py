@@ -6,9 +6,12 @@
 """
 
 import glob
+import logging
+import logging.handlers
 import os
 import random
 import re
+import sys
 from typing import Any, Dict, Tuple
 
 import numpy as np
@@ -76,6 +79,36 @@ def get_model(model_name: str, model_config: Dict[str, Any]) -> nn.Module:
         __import__("src.models." + model_name, fromlist=[model_name]), getter
     )
     return constructor(**model_config)
+
+
+def get_logger(
+    filename: str,
+    mode: str = "a",
+    level: int = logging.DEBUG,
+    maxbytes: int = 1024 * 1024 * 10,  # default: 10Mbyte
+    backupcnt: int = 100,
+) -> logging.Logger:
+    """Create and get the logger for the console and files."""
+    logger = logging.getLogger()
+    logger.setLevel(level)
+
+    chdlr = logging.StreamHandler(sys.stdout)
+    chdlr.setLevel(logging.DEBUG)
+    cfmts = "%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s"
+    chdlr.setFormatter(logging.Formatter(cfmts))
+    logger.addHandler(chdlr)
+
+    fhdlr = logging.handlers.RotatingFileHandler(
+        filename, mode=mode, maxBytes=maxbytes, backupCount=backupcnt
+    )
+    fhdlr.setLevel(logging.DEBUG)
+    ffmts = "%(asctime)s - "
+    ffmts += "%(processName)s - %(threadName)s - "
+    ffmts += "%(filename)s:%(lineno)d - %(levelname)s - %(message)s"
+    fhdlr.setFormatter(logging.Formatter(ffmts))
+    logger.addHandler(fhdlr)
+
+    return logger
 
 
 def save_checkpoint(state: Dict[str, Any], path: str, filename: str) -> None:

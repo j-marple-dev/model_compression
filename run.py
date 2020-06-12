@@ -40,9 +40,14 @@ for name in ["", "data", "model", f"model/{curr_time}"]:
         os.mkdir(path)
 dir_prefix = f"save/model/{curr_time}"
 
+# get logger
+logger = utils.get_logger(filename=os.path.join(dir_prefix, f"{args.config}.log"))
+
 # load and copy configurations
 config = __import__("src.config." + args.config, fromlist=["config"]).config
-shutil.copyfile(f"src/config/{args.config}.py", os.path.join(dir_prefix, "config.py"))
+shutil.copyfile(
+    f"src/config/{args.config}.py", os.path.join(dir_prefix, f"{args.config}.config")
+)
 
 # set random seed
 utils.set_random_seed(config["SEED"])
@@ -60,7 +65,7 @@ trainloader, testloader = utils.get_dataset(
 model = utils.get_model(config["MODEL_NAME"], config["MODEL_PARAMS"]).to(device)
 
 # run pretraining
-print("[INFO] Run pretraining\n")
+logger.info("Run pretraining")
 wandb_init_params = dict(config=config, name=curr_time, group=args.config)
 trainer = Trainer(
     model=model,
@@ -70,12 +75,13 @@ trainer = Trainer(
     dir_prefix=dir_prefix,
     model_dir="pretrain",
     device=device,
+    logger=logger,
     wandb_log=args.wlog,
     wandb_init_params=wandb_init_params,
 )
 trainer.run({"sparsity": 0.0})
 
 # run pruning module
-print("[INFO] Run pruning\n")
-pruner = Pruner(trainer=trainer, config=config, dir_prefix=dir_prefix)
+logger.info("Run pruning")
+pruner = Pruner(trainer=trainer, config=config, dir_prefix=dir_prefix, logger=logger)
 pruner.run()

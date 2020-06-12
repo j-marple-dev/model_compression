@@ -5,6 +5,7 @@
 - Email: jwpark@jmarple.ai
 """
 
+import logging
 import os
 from typing import Any, Dict
 
@@ -31,6 +32,7 @@ class Trainer:
         dir_prefix: str,
         model_dir: str,
         device: torch.device,
+        logger: logging.Logger,
         wandb_log: bool,
         wandb_init_params: Dict[str, Any],
     ) -> None:
@@ -39,8 +41,9 @@ class Trainer:
         self.trainloader = trainloader
         self.testloader = testloader
         self.config = config
-        self.wandb_log = wandb_log
         self.device = device
+        self.logger = logger
+        self.wandb_log = wandb_log
         self.init_params_path = ""
         self.reset(dir_prefix, model_dir)
 
@@ -89,14 +92,14 @@ class Trainer:
         for epoch in range(self.start_epoch, self.config["EPOCHS"]):
             self.lr_scheduler(self.optimizer, epoch)
             lr = self.optimizer.param_groups[0]["lr"]
-            print(f"[INFO] Epoch: [{epoch} | {self.config['EPOCHS']-1}] LR: {lr}")
+            self.logger.info(f"Epoch: [{epoch} | {self.config['EPOCHS']-1}] LR: {lr}")
 
             # train
             train_loss = self.train_one_epoch()
 
             # test
             test_acc = self.test_one_epoch()
-            print(f"[INFO] Test Accuracy: {test_acc:.2f}%\n")
+            self.logger.info(f"Test Accuracy: {test_acc:.2f}%")
 
             # save model
             self.save_best_params(test_acc, epoch)
@@ -157,7 +160,7 @@ class Trainer:
     def save_init_params(self) -> None:
         """Set initial weights."""
         filename = "init_weight"
-        print("[INFO] Stored initial weights\n")
+        self.logger.info("Stored initial weights")
 
         self.save_params(
             self.dir_prefix, filename, self.config["STORE_PARAM_BEFORE"] - 1,
@@ -178,7 +181,7 @@ class Trainer:
             path=model_path,
             filename=f"{filename}.pth.tar",
         )
-        print(f"[INFO] Saved model in {model_path}/{filename}.pth.tar\n")
+        self.logger.info(f"Saved model in {model_path}/{filename}.pth.tar")
 
     def load_params(self, model_path: str) -> None:
         """Load prameters."""
@@ -186,7 +189,7 @@ class Trainer:
         self.initialize_params(self.model, checkpt["state_dict"])
         self.initialize_params(self.optimizer, checkpt["optimizer"])
         self.start_epoch = checkpt["epoch"] + 1
-        print(f"[INFO] Loaded parameters from {model_path}\n")
+        self.logger.info(f"Loaded parameters from {model_path}")
 
     def load_init_params(self, init_params_path: str) -> None:
         """Load initial prameters."""
