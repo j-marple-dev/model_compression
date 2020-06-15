@@ -128,36 +128,43 @@ def get_weight_tuple(
     """Get weight and bias tuples for pruning."""
     t = []
     for name, param in model.named_parameters():
-        if param.requires_grad:
-            layer_name, weight_type = name.rsplit(".", 1)
-            if weight_type == "weight" or (bias and weight_type == "bias"):
-                t.append((eval("model." + dot2bracket(layer_name)), weight_type))
+        if not param.requires_grad:
+            continue
+        layer_name, weight_type = name.rsplit(".", 1)
+        if weight_type == "weight" or (bias and weight_type == "bias"):
+            t.append((eval("model." + dot2bracket(layer_name)), weight_type))
     return tuple(t)
 
 
 def wlog_pruned_weight(model: nn.Module) -> None:
     """Log pruned (masked) weights only on wandb."""
-    w_dict = dict()
+    wlog = dict()
     for name, param in model.named_parameters():
-        if param.requires_grad:
-            layer_name, weight_type = name.rsplit(".", 1)
-            if weight_type in ("weight", "bias", "weight_orig"):
-                postfix = "." + weight_type
-                module_name = "model." + dot2bracket(layer_name) + postfix
-                weight_cpy = eval(module_name).cpu().data.numpy()
-            else:
-                continue
+        if not param.requires_grad:
+            continue
+        layer_name, weight_type = name.rsplit(".", 1)
 
-            # for getting masked weights
-            if weight_type == "weight_orig":
-                postfix = ".weight"
-                module_name = "model." + dot2bracket(layer_name) + ".named_buffers()"
-                weight_mask = list(eval(module_name))[0][1].cpu().data.numpy()
-                weight_cpy = weight_cpy[np.where(weight_mask == 1.0)]
+        # get params(weight, bias, weight_orig)
+        if weight_type in ("weight", "bias", "weight_orig"):
+            w_name = "pruned/" + layer_name + "." + weight_type
+            weight = eval("model." + dot2bracket(layer_name) + "." + weight_type)
+            weight = weight.cpu().data.numpy()
+            wlog.update({w_name: wandb.Histogram(weight)})
+        else:
+            continue
 
-            key = "pruned/" + layer_name + postfix
-            w_dict.update({key: wandb.Histogram(weight_cpy)})
-    wandb.log(w_dict, commit=False)
+        # get masked weights
+        if weight_type == "weight_orig":
+            w_name = "pruned/" + layer_name + ".weight"
+            named_buffers = eval(
+                "model." + dot2bracket(layer_name) + ".named_buffers()"
+            )
+            mask: Tuple[str, torch.Tensor] = next(
+                x for x in list(named_buffers) if x[0] == "weight_mask"
+            )[1].cpu().data.numpy()
+            masked_weight = weight[np.where(mask == 1.0)]
+            wlog.update({w_name: wandb.Histogram(masked_weight)})
+    wandb.log(wlog, commit=False)
 
 
 def dot2bracket(s: str) -> str:
@@ -172,12 +179,22 @@ def dot2bracket(s: str) -> str:
        'conv2[123].bn1.bias'
        >>> dot2bracket("dense2.6.conv2.5.bn1.bias")
        'dense2[6].conv2[5].bn1.bias'
+       >>> dot2bracket("model.6")
+       'model[6]'
+       >>> dot2bracket("vgg.2.conv2.bn.2")
+       'vgg[2].conv2.bn[2]'
+       >>> dot2bracket("features.11")
+       'features[11]'
     """
-    pattern = r"\.[0-9]*\."
+    pattern = r"\.[0-9]+"
     s_list = list(s)
     for m in re.finditer(pattern, s):
         start, end = m.span()
-        s_list[start], s_list[end - 1] = "[", "]."
+        s_list[start] = "["
+        if end < len(s) and s_list[end] == ".":
+            s_list[end] = "]."
+        else:
+            s_list.insert(end, "]")
     return "".join(s_list)
 
 
