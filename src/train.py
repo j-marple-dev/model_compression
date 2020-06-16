@@ -7,7 +7,7 @@
 
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 from progressbar import progressbar
 import torch
@@ -95,11 +95,16 @@ class Trainer:
             self.logger.info(f"Epoch: [{epoch} | {self.config['EPOCHS']-1}] LR: {lr}")
 
             # train
-            train_loss = self.train_one_epoch()
+            train_loss, train_acc = self.train_one_epoch()
 
             # test
-            test_acc = self.test_one_epoch()
-            self.logger.info(f"Test Accuracy: {test_acc:.2f}%")
+            test_loss, test_acc = self.test_one_epoch()
+            self.logger.info(
+                f"Train Loss: {train_loss:.2f} | Train Accuracy: {train_acc:.2f}%"
+            )
+            self.logger.info(
+                f"Test Loss: {test_loss:.2f} | Test Accuracy: {test_acc:.2f}%"
+            )
 
             # save model
             self.save_best_params(test_acc, epoch)
@@ -113,12 +118,21 @@ class Trainer:
 
             # logging
             if self.wandb_log:
-                log_data.update({"acc": test_acc, "loss": train_loss, "lr": lr})
+                log_data.update(
+                    {
+                        "train acc": train_acc,
+                        "test acc": test_acc,
+                        "train loss": train_loss,
+                        "test loss": test_loss,
+                        "lr": lr,
+                    }
+                )
                 utils.wlog_pruned_weight(self.model)
                 wandb.log(log_data)
 
-    def train_one_epoch(self) -> float:
+    def train_one_epoch(self) -> Tuple[float, float]:
         """Train one epoch."""
+        correct = total = 0
         losses = []
         self.model.train()
         for data in progressbar(self.trainloader):
@@ -134,21 +148,35 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
             losses.append(loss.item())
-        avg_loss = sum(losses) / len(losses)
-        return avg_loss
 
-    def test_one_epoch(self) -> float:
+            # compute accuracy
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+        train_acc = 100.0 * correct / total
+
+        avg_loss = sum(losses) / len(losses)
+        return avg_loss, train_acc
+
+    def test_one_epoch(self) -> Tuple[float, float]:
         """Test one epoch."""
         correct = total = 0
+        losses = []
         self.model.eval()
         for data in progressbar(self.testloader):
             images, labels = data[0].to(self.device), data[1].to(self.device)
             outputs = self.model(images)
+            loss = self.criterion(outputs, labels)
+            losses.append(loss.item())
+
+            # compute accuracy
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
         test_acc = 100.0 * correct / total
-        return test_acc
+
+        avg_loss = sum(losses) / len(losses)
+        return avg_loss, test_acc
 
     def save_best_params(self, test_acc: float, epoch: int) -> None:
         """Save the model if the accuracy is better."""
