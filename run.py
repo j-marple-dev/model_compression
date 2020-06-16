@@ -13,12 +13,13 @@ import shutil
 
 import torch
 
-from src.prune import Pruner
-from src.train import Trainer
 import src.utils as utils
 
 # arguments
 parser = argparse.ArgumentParser(description="Model compression.")
+parser.add_argument(
+    "--module", type=str, default="pruner", help="Module to run (without .py)"
+)
 parser.add_argument(
     "--config", type=str, default="naive_lth_simple", help="Configuration name"
 )
@@ -40,8 +41,8 @@ for name in ["", "data", "model", f"model/{curr_time}"]:
         os.mkdir(path)
 dir_prefix = f"save/model/{curr_time}"
 
-# get logger
-logger = utils.get_logger(filename=os.path.join(dir_prefix, f"{args.config}.log"))
+# set logger
+utils.set_logger(filename=os.path.join(dir_prefix, f"{args.config}.log"))
 
 # load and copy configurations
 config = __import__("src.config." + args.config, fromlist=["config"]).config
@@ -52,36 +53,7 @@ shutil.copyfile(
 # set random seed
 utils.set_random_seed(config["SEED"])
 
-# create dataloaders
-trainloader, testloader = utils.get_dataset(
-    config["BATCH_SIZE"],
-    config["N_WORKERS"],
-    config["DATASET"],
-    config["AUG_TRAIN"],
-    config["AUG_TEST"],
-)
-
-# create an initial model
-model = utils.get_model(config["MODEL_NAME"], config["MODEL_PARAMS"]).to(device)
-
-# run pretraining
-logger.info("Run pretraining")
+# run module
 wandb_init_params = dict(config=config, name=curr_time, group=args.config)
-trainer = Trainer(
-    model=model,
-    trainloader=trainloader,
-    testloader=testloader,
-    config=config,
-    dir_prefix=dir_prefix,
-    model_dir="pretrain",
-    device=device,
-    logger=logger,
-    wandb_log=args.wlog,
-    wandb_init_params=wandb_init_params,
-)
-trainer.run({"sparsity": 0.0})
-
-# run pruning module
-logger.info("Run pruning")
-pruner = Pruner(trainer=trainer, config=config, dir_prefix=dir_prefix, logger=logger)
-pruner.run()
+module = __import__("src." + args.module, fromlist=[args.module])
+module.run(config, dir_prefix, device, args.wlog, wandb_init_params)

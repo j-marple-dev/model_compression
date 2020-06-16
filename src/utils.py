@@ -81,13 +81,13 @@ def get_model(model_name: str, model_config: Dict[str, Any]) -> nn.Module:
     return constructor(**model_config)
 
 
-def get_logger(
+def set_logger(
     filename: str,
     mode: str = "a",
     level: int = logging.DEBUG,
     maxbytes: int = 1024 * 1024 * 10,  # default: 10Mbyte
     backupcnt: int = 100,
-) -> logging.Logger:
+) -> None:
     """Create and get the logger for the console and files."""
     logger = logging.getLogger()
     logger.setLevel(level)
@@ -107,8 +107,6 @@ def get_logger(
     ffmts += "%(filename)s:%(lineno)d - %(levelname)s - %(message)s"
     fhdlr.setFormatter(logging.Formatter(ffmts))
     logger.addHandler(fhdlr)
-
-    return logger
 
 
 def save_checkpoint(state: Dict[str, Any], path: str, filename: str) -> None:
@@ -136,8 +134,8 @@ def get_weight_tuple(
     return tuple(t)
 
 
-def wlog_pruned_weight(model: nn.Module) -> None:
-    """Log pruned (masked) weights only on wandb."""
+def wlog_weight(model: nn.Module) -> None:
+    """Log weights on wandb."""
     wlog = dict()
     for name, param in model.named_parameters():
         if not param.requires_grad:
@@ -146,7 +144,7 @@ def wlog_pruned_weight(model: nn.Module) -> None:
 
         # get params(weight, bias, weight_orig)
         if weight_type in ("weight", "bias", "weight_orig"):
-            w_name = "pruned/" + layer_name + "." + weight_type
+            w_name = "params/" + layer_name + "." + weight_type
             weight = eval("model." + dot2bracket(layer_name) + "." + weight_type)
             weight = weight.cpu().data.numpy()
             wlog.update({w_name: wandb.Histogram(weight)})
@@ -155,7 +153,7 @@ def wlog_pruned_weight(model: nn.Module) -> None:
 
         # get masked weights
         if weight_type == "weight_orig":
-            w_name = "pruned/" + layer_name + ".weight"
+            w_name = "params/" + layer_name + ".weight"
             named_buffers = eval(
                 "model." + dot2bracket(layer_name) + ".named_buffers()"
             )
