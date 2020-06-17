@@ -107,8 +107,9 @@ class Trainer:
 
         # save model
         if test_acc > self.best_acc:
-            self.save_params(self.best_model_path, str(epoch), epoch, test_acc)
             self.best_acc = test_acc
+            filename = str(epoch) + "_" + f"{test_acc:.2f}".replace(".", "_")
+            self.save_params(self.best_model_path, filename, epoch, test_acc)
 
         # log
         if not extra_log_info:
