@@ -114,12 +114,14 @@ class Trainer:
         if not extra_log_info:
             extra_log_info = []
         log_info = []
-        log_info.append(("LR", self.optimizer.param_groups[0]["lr"], default_format))
-        log_info.append(("Train Loss", train_loss, default_format))
-        log_info.append(("Train Acc", train_acc, percent_format))
-        log_info.append(("Test Loss", test_loss, default_format))
-        log_info.append(("Test Acc", test_acc, percent_format))
-        log_info.append(("Best Acc", self.best_acc, percent_format))
+        log_info.append(
+            ("train/lr", self.optimizer.param_groups[0]["lr"], default_format)
+        )
+        log_info.append(("train/loss", train_loss, default_format))
+        log_info.append(("train/acc", train_acc, percent_format))
+        log_info.append(("test/loss", test_loss, default_format))
+        log_info.append(("test/acc", test_acc, percent_format))
+        log_info.append(("test/best_acc", self.best_acc, percent_format))
         self.log_one_epoch(epoch, log_info + extra_log_info)
 
     def log_one_epoch(
@@ -127,13 +129,13 @@ class Trainer:
     ) -> None:
         """Log information after running one epoch."""
         log_str = f"Epoch: [{epoch} | {self.config['EPOCHS']-1}]\t"
-        log_str += "\t".join([f"{t[0]}: " + t[2](t[1]) for t in log_info])
+        log_str += "\t".join([f"{name}: " + f(val) for name, val, f in log_info])
         logger.info(log_str)
 
         # logging
         if self.wandb_log:
             utils.wlog_weight(self.model)
-            wandb.log(dict((t[0], t[1]) for t in log_info))
+            wandb.log(dict((name, val) for name, val, _ in log_info))
 
     def train_one_epoch(self) -> Tuple[float, float]:
         """Train one epoch."""

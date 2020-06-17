@@ -35,11 +35,11 @@ device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
 
 # create directories
 curr_time = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
-for name in ["", "data", "model", f"model/{curr_time}"]:
+for name in ["", "data", "checkpoint", f"checkpoint/{curr_time}"]:
     path = os.path.join("save", name)
     if not os.path.exists(path):
         os.mkdir(path)
-dir_prefix = f"save/model/{curr_time}"
+dir_prefix = f"save/checkpoint/{curr_time}"
 
 # set logger
 utils.set_logger(filename=os.path.join(dir_prefix, f"{args.config}.log"))

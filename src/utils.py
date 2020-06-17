@@ -74,11 +74,9 @@ def get_dataset(
 def get_model(model_name: str, model_config: Dict[str, Any]) -> nn.Module:
     """Get PyTorch model."""
     # get model constructor
-    getter = "get_model"
-    constructor = getattr(
-        __import__("src.models." + model_name, fromlist=[model_name]), getter
+    return __import__("src.models." + model_name, fromlist=[model_name]).get_model(
+        **model_config
     )
-    return constructor(**model_config)
 
 
 def set_logger(
@@ -118,20 +116,6 @@ def save_checkpoint(state: Dict[str, Any], path: str, filename: str) -> None:
 def get_latest_file(filepath: str) -> str:
     """Get the latest file from the input filepath."""
     return max(glob.glob(filepath + "/*"), key=os.path.getctime)
-
-
-def get_weight_tuple(
-    model: nn.Module, bias: bool = False
-) -> Tuple[Tuple[nn.Module, str], ...]:
-    """Get weight and bias tuples for pruning."""
-    t = []
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            continue
-        layer_name, weight_type = name.rsplit(".", 1)
-        if weight_type == "weight" or (bias and weight_type == "bias"):
-            t.append((eval("model." + dot2bracket(layer_name)), weight_type))
-    return tuple(t)
 
 
 def wlog_weight(model: nn.Module) -> None:
@@ -194,18 +178,6 @@ def dot2bracket(s: str) -> str:
         else:
             s_list.insert(end, "]")
     return "".join(s_list)
-
-
-def get_sparsity(model: nn.Module, w_tuple: Tuple[Tuple[nn.Module, str], ...]) -> float:
-    """Get the proportion of zeros in weights."""
-    zero_element = 0
-    total_element = 0
-
-    for w in w_tuple:
-        zero_element += torch.sum((getattr(w[0], w[1]) == 0.0).int()).item()  # type: ignore
-        total_element += getattr(w[0], w[1]).nelement()
-
-    return 100.0 * float(zero_element) / float(total_element)
 
 
 if __name__ == "__main__":

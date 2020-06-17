@@ -15,8 +15,8 @@ $ conda activate model_compression
 #### Installation
 First, clone the repository.
 ```
-git clone https://github.com/Curt-Park/model_compression.git
-cd model_compression
+$ git clone https://github.com/Curt-Park/model_compression.git
+$ cd model_compression
 ```
 
 ###### Prerequisites
@@ -32,18 +32,30 @@ https://pytorch.org/get-started/previous-versions/
 ###### For users
 Install packages required to execute the code. Just type:
 ```
-make dep
+$ make dep
 ```
 
 ###### For developers
 
 If you want to modify code you should configure formatting and linting settings. It automatically runs formatting and linting when you commit the code. Just type:
 ```
-make dev
+$ make dev
 ```
 
 After having done `make dev`, you can validate the code by the following commands.
 ```
-make format  # for formatting
-make test  # for linting
+$ make format  # for formatting
+$ make test  # for linting
+```
+
+## Usages
+
+#### Run training
+```
+$ python run.py --module trainer
+```
+
+#### Run pruning
+```
+$ python run.py --module pruner
 ```
