@@ -8,7 +8,7 @@
 
 import math
 
-from torch.optim import Optimizer  # type: ignore
+from torch.optim.optimizer import Optimizer
 
 
 class WarmupCosineLR:

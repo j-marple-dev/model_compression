@@ -5,7 +5,6 @@
 - Email: jwpark@jmarple.ai
 """
 
-import logging
 import os
 from typing import Any, Callable, Dict, List, Tuple
 
@@ -17,36 +16,35 @@ import wandb
 
 from src.format import default_format, percent_format
 from src.lr_schedulers import WarmupCosineLR
-import src.utils as utils
+from src.runners.runner import Runner
+from src.utils import get_logger
 
-logger = logging.getLogger()
+logger = get_logger()
 
 
-class Trainer:
+class Trainer(Runner):
     """Trainer for models."""
 
     def __init__(
         self,
         config: Dict[str, Any],
         dir_prefix: str,
-        model_dir: str,
-        device: torch.device,
+        checkpt_dir: str,
         wandb_log: bool,
         wandb_init_params: Dict[str, Any],
+        device: torch.device,
     ) -> None:
         """Initialize."""
-        self.config = config
+        super(Trainer, self).__init__(config, dir_prefix)
         self.device = device
         self.wandb_log = wandb_log
-        self.reset(dir_prefix, model_dir)
+        self.reset(checkpt_dir)
 
         # create a model
-        self.model = utils.get_model(config["MODEL_NAME"], config["MODEL_PARAMS"]).to(
-            device
-        )
+        self.model = self.get_model().to(self.device)
 
         # create dataloaders
-        self.trainloader, self.testloader = utils.get_dataset(
+        self.trainloader, self.testloader = self.get_dataset(
             config["BATCH_SIZE"],
             config["N_WORKERS"],
             config["DATASET"],
@@ -75,20 +73,36 @@ class Trainer:
         if wandb_log:
             wandb.init(**wandb_init_params)
 
-    def reset(self, dir_prefix: str, model_dir: str) -> None:
+    def reset(self, checkpt_dir: str) -> None:
         """Reset the configurations."""
-        self.dir_prefix = dir_prefix
-        self.model_dir = model_dir
+        self.checkpt_dir = checkpt_dir
         self.best_acc = 0.0
 
         # best model path
-        self.best_model_path = os.path.join(dir_prefix, model_dir)
+        self.best_model_path = os.path.join(self.dir_prefix, checkpt_dir)
         if not os.path.exists(self.best_model_path):
             os.mkdir(self.best_model_path)
 
-    def run(self) -> None:
+    def resume(self) -> int:
+        """Setting to resume the training."""
+        last_epoch = -1
+        latest_file_path = self._fetch_latest_checkpt()
+        if latest_file_path and os.path.exists(latest_file_path):
+            logger.info(f"Resume training from {self.dir_prefix}")
+            self.load_params(latest_file_path)
+            _, self.checkpt_dir, filename = latest_file_path.rsplit("/", 2)
+            # fetch the last epoch from the filename
+            last_epoch = int(filename.split("_", 1)[0])
+        return last_epoch + 1
+
+    def run(self, resume_info_path: str = "") -> None:
         """Train the model."""
-        for epoch in range(self.config["EPOCHS"]):
+        # resume trainer if needed
+        start_epoch = 0
+        if resume_info_path:
+            start_epoch = self.resume()
+
+        for epoch in range(start_epoch, self.config["EPOCHS"]):
             self.run_one_epoch(epoch)
 
     def run_one_epoch(
@@ -114,10 +128,9 @@ class Trainer:
         # log
         if not extra_log_info:
             extra_log_info = []
-        log_info = []
-        log_info.append(
-            ("train/lr", self.optimizer.param_groups[0]["lr"], default_format)
-        )
+        lr = self.optimizer.param_groups[0]["lr"]
+        log_info: List[Tuple[str, float, Callable[[float], str]]] = []
+        log_info.append(("train/lr", lr, default_format))
         log_info.append(("train/loss", train_loss, default_format))
         log_info.append(("train/acc", train_acc, percent_format))
         log_info.append(("test/loss", test_loss, default_format))
@@ -135,7 +148,7 @@ class Trainer:
 
         # logging
         if self.wandb_log:
-            utils.wlog_weight(self.model)
+            self.wlog_weight(self.model)
             wandb.log(dict((name, val) for name, val, _ in log_info))
 
     def train_one_epoch(self) -> Tuple[float, float]:
@@ -187,19 +200,28 @@ class Trainer:
         return avg_loss, test_acc
 
     def save_params(
-        self, model_path: str, filename: str, epoch: int, test_acc: float = 0.0
+        self,
+        model_path: str,
+        filename: str,
+        epoch: int,
+        test_acc: float = 0.0,
+        record_path: bool = True,
     ) -> None:
         """Save model."""
-        utils.save_checkpoint(
-            {
-                "state_dict": self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-                "test_acc": test_acc,
-            },
-            path=model_path,
-            filename=f"{filename}.pth.tar",
-        )
-        logger.info(f"Saved model in {model_path}/{filename}.pth.tar")
+        params = {
+            "state_dict": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "test_acc": test_acc,
+        }
+        filepath = os.path.join(model_path, f"{filename}.{self.fileext}")
+        torch.save(params, filepath)
+        logger.info(f"Saved model in {model_path}/{filename}.{self.fileext}")
+
+        if record_path:
+            with open(
+                os.path.join(self.dir_prefix, self.checkpt_paths), "a"
+            ) as checkpts:
+                checkpts.write(filepath + "\n")
 
     def load_params(self, model_path: str, with_mask=True) -> None:
         """Load weights and masks."""
@@ -208,36 +230,22 @@ class Trainer:
         self.initialize_params(self.optimizer, checkpt["optimizer"], with_mask=False)
         logger.info(f"Loaded parameters from {model_path}")
 
-    def initialize_params(
-        self, model: Any, state_dict: Dict[str, Any], with_mask=True
-    ) -> None:
-        """Initialize weights and masks."""
-        model_dict = model.state_dict()
-        # 1. filter out unnecessary keys
-        pretrained_dict = {}
-        for k, v in state_dict.items():
-            if k in model_dict and (with_mask or "weight_mask" not in k):
-                pretrained_dict[k] = v
-        # 2. overwrite entries in the existing state dict
-        model_dict.update(pretrained_dict)
-        # 3. load the new state dict
-        model.load_state_dict(model_dict)
-
 
 def run(
     config: Dict[str, Any],
     dir_prefix: str,
     device: torch.device,
-    wandb_log: bool,
     wandb_init_params: Dict[str, Any],
+    wandb_log: bool,
+    resume_info_path: str,
 ) -> None:
     """Run training process."""
     trainer = Trainer(
         config=config,
         dir_prefix=dir_prefix,
-        model_dir="train",
-        device=device,
+        checkpt_dir="train",
         wandb_log=wandb_log,
         wandb_init_params=wandb_init_params,
+        device=device,
     )
-    trainer.run()
+    trainer.run(resume_info_path)

@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Runner for model compression.
+"""Runner for making a sparse model by weight pruning.
 
 - Author: Junghoon Kim
 - Email: jhkim@jmarple.ai
 """
 
 
-import logging
 import os
 from typing import Any, Callable, Dict, List, Set, Tuple
 
@@ -15,13 +14,15 @@ import torch.nn as nn
 import torch.nn.utils.prune as prune
 
 from src.format import percent_format
-from src.trainer import Trainer
+from src.runners.runner import Runner
+from src.runners.trainer import Trainer
 import src.utils as utils
+from src.utils import get_logger
 
-logger = logging.getLogger()
+logger = get_logger()
 
 
-class Pruner:
+class Pruner(Runner):
     """Pruner for models."""
 
     def __init__(
@@ -33,16 +34,18 @@ class Pruner:
         device: torch.device,
     ) -> None:
         """Initialize."""
-        self.config = config
-        self.dir_prefix = dir_prefix
+        super(Pruner, self).__init__(config, dir_prefix)
         self.wandb_log = wandb_log
+        self.pretrain_dir_name = "pretrain"
+        self.dir_postfix = "pruned"
+        self.init_params_name = "init_params"
         self.init_params_path = ""
 
         # create an initial model
         self.trainer = Trainer(
-            config=config,
+            config=self.config,
             dir_prefix=dir_prefix,
-            model_dir="pretrain",
+            checkpt_dir=self.pretrain_dir_name,
             device=device,
             wandb_log=wandb_log,
             wandb_init_params=wandb_init_params,
@@ -54,12 +57,13 @@ class Pruner:
         self.param_names = self.get_param_names()
 
     def reset(
-        self, prune_iter: int
+        self, prune_iter: int, resumed: bool = False,
     ) -> Tuple[int, List[Tuple[str, float, Callable[[float], str]]]]:
         """Reset the processes for pruning or pretraining.
 
         Args:
             prune_iter (int): the next pruning iteration.
+            resumed (bool): has True if it is resumed.
 
         Returns:
             int: the starting epoch of training (rewinding point for pruning).
@@ -69,25 +73,30 @@ class Pruner:
         """
         # pretraining
         if prune_iter == -1:
-            start_from = 0
+            start_epoch = 0
             sparsity = 0.0
             mask_sparsity = 0.0
             conv_sparsity = 0.0
             fc_sparsity = 0.0
 
             # directory names for checkpionts
-            model_dir = "pretrain"
+            checkpt_dir = self.pretrain_dir_name
             logger.info("Initialized Pretraining Settings")
+
+            # store initial weights
+            if not resumed and self.config["STORE_PARAM_BEFORE"] == 0:
+                self.save_init_params()
         # pruning
         else:
-            start_from = self.config["PRUNE_START_FROM"]
+            start_epoch = self.config["PRUNE_START_FROM"]
 
             # prune
-            prune.global_unstructured(
-                self.params_to_prune,
-                pruning_method=prune.L1Unstructured,
-                amount=self.config["PRUNE_AMOUNT"],
-            )
+            if not resumed:
+                prune.global_unstructured(
+                    self.params_to_prune,
+                    pruning_method=prune.L1Unstructured,
+                    amount=self.config["PRUNE_AMOUNT"],
+                )
 
             # sparsities
             sparsity = self.sparsity()
@@ -96,14 +105,20 @@ class Pruner:
             fc_sparsity = self.sparsity(module_name="Linear")
 
             # directory name for checkpoints
-            model_dir = f"{(sparsity):.2f}_pruned".replace(".", "_")
+            checkpt_dir = f"{prune_iter}_{(sparsity):.2f}_{self.dir_postfix}".replace(
+                ".", "_"
+            )
             logger.info(
                 "Initialized Pruning Settings: "
                 f"[{prune_iter} | {self.config['N_PRUNING_ITER']-1}]"
             )
 
+            # initialize trainer
+            if not resumed and self.init_params_path:
+                self.trainer.load_params(self.init_params_path, with_mask=False)
+
         # reset trainer
-        self.trainer.reset(self.dir_prefix, model_dir)
+        self.trainer.reset(checkpt_dir)
 
         # sparsity info for logging
         sparsity_info = []
@@ -112,36 +127,78 @@ class Pruner:
         sparsity_info.append(("sparsity/conv", conv_sparsity, percent_format))
         sparsity_info.append(("sparsity/fc", fc_sparsity, percent_format))
 
-        return start_from, sparsity_info
+        return start_epoch, sparsity_info
 
-    def run(self) -> None:
+    def resume(self) -> int:
+        """Setting to resume the training."""
+        # check if there is a saved initial parameters
+        init_params_path = os.path.join(
+            self.dir_prefix, f"{self.init_params_name}.{self.fileext}"
+        )
+        if os.path.exists(init_params_path):
+            self.init_params_path = init_params_path
+
+        # check the pruning iteration
+        last_iter = -1
+        latest_file_path = self._fetch_latest_checkpt()
+        if latest_file_path and os.path.exists(latest_file_path):
+            logger.info(f"Resume pruning from {self.dir_prefix}")
+            _, checkpt_dir, _ = latest_file_path.rsplit("/", 2)
+            # fetch the last iter from the filename
+            if checkpt_dir != self.pretrain_dir_name:
+                last_iter = int(checkpt_dir.split("_", 1)[0])
+
+        # model should contain weight_mask
+        if last_iter > -1:
+            prune.global_unstructured(
+                self.params_to_prune, pruning_method=prune.L1Unstructured, amount=0.0,
+            )
+
+        return last_iter
+
+    def run(self, resume_info_path: str = "") -> None:
         """Run pruning."""
-        if self.config["STORE_PARAM_BEFORE"] == 0:
-            self.save_init_params()
+        # resume pruner if needed
+        start_iter, epoch_to_resume = -1, 0
+        if resume_info_path:
+            start_iter = self.resume()
+            epoch_to_resume = self.trainer.resume()
+            logger.info("Run one epoch for warming-up")
+            self.trainer.test_one_epoch()
 
         # pretraining and pruning iteration
-        for i in range(-1, self.config["N_PRUNING_ITER"]):
-            start_from, sparsity_info = self.reset(i)
+        for i in range(start_iter, self.config["N_PRUNING_ITER"]):
+            start_epoch, sparsity_info = self.reset(i, epoch_to_resume > 0)
 
-            # initialize training
-            if self.init_params_path:
-                self.trainer.load_params(self.init_params_path, with_mask=False)
+            # if there is a valid file to resume
+            if start_epoch < epoch_to_resume:
+                start_epoch = epoch_to_resume
+                epoch_to_resume = 0
 
-            for epoch in range(start_from, self.config["EPOCHS"]):
+            for epoch in range(start_epoch, self.config["EPOCHS"]):
                 self.trainer.run_one_epoch(epoch, sparsity_info)
 
-                # store initial weights
+                # store weights with warmup
                 if self.config["STORE_PARAM_BEFORE"] - 1 == epoch:
                     self.save_init_params()
 
+            if i == -1:
+                logger.info("Pretraining Done")
+            else:
+                logger.info(f"Pruning Done: [{i} | {self.config['N_PRUNING_ITER']-1}]")
+
     def save_init_params(self) -> None:
         """Set initial weights."""
-        filename = "init_weight"
         self.trainer.save_params(
-            self.dir_prefix, filename, self.config["STORE_PARAM_BEFORE"] - 1,
+            self.dir_prefix,
+            self.init_params_name,
+            self.config["STORE_PARAM_BEFORE"] - 1,
+            record_path=False,
         )
-        logger.info("Stored initial weights")
-        self.init_params_path = os.path.join(self.dir_prefix, f"{filename}.pth.tar")
+        logger.info("Stored initial parameters")
+        self.init_params_path = os.path.join(
+            self.dir_prefix, f"{self.init_params_name}.{self.fileext}"
+        )
 
     def sparsity(self, module_name: str = "") -> float:
         """Get the proportion of zeros in weights (default: model's sparsity)."""
@@ -194,8 +251,9 @@ def run(
     config: Dict[str, Any],
     dir_prefix: str,
     device: torch.device,
-    wandb_log: bool,
     wandb_init_params: Dict[str, Any],
+    wandb_log: bool,
+    resume_info_path: str,
 ) -> None:
     """Run pruning process."""
     pruner = Pruner(
@@ -205,4 +263,4 @@ def run(
         wandb_init_params=wandb_init_params,
         device=device,
     )
-    pruner.run()
+    pruner.run(resume_info_path)

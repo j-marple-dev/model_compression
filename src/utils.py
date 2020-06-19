@@ -12,13 +12,9 @@ import os
 import random
 import re
 import sys
-from typing import Any, Dict, Tuple
 
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.utils.data as data
-import wandb
 
 
 def set_random_seed(seed: int):
@@ -33,52 +29,6 @@ def set_random_seed(seed: int):
         torch.backends.cudnn.benchmark = False  # type: ignore
 
 
-def get_dataset(
-    batch_size: int,
-    n_workers: int,
-    dataset_name: str = "CIFAR100",
-    transform_train: str = "simple_augment_train_cifar100",
-    transform_test: str = "simple_augment_test_cifar100",
-) -> Tuple[data.DataLoader, data.DataLoader]:
-    """Get dataset for training and testing."""
-    # dataset
-    dataset = getattr(
-        __import__("torchvision.datasets", fromlist=["datasets"]), dataset_name
-    )
-
-    # dataloader for training
-    transform_train = getattr(
-        __import__("src.augment", fromlist=["augment"]), transform_train
-    )()
-    trainset = dataset(
-        root="save/data", train=True, download=True, transform=transform_train,
-    )
-    trainloader = data.DataLoader(
-        trainset, batch_size=batch_size, shuffle=True, num_workers=n_workers,
-    )
-
-    # dataloader for testing
-    transform_test = getattr(
-        __import__("src.augment", fromlist=["augment"]), transform_test
-    )()
-    testset = dataset(
-        root="save/data", train=False, download=False, transform=transform_test,
-    )
-    testloader = data.DataLoader(
-        testset, batch_size=batch_size, shuffle=True, num_workers=n_workers,
-    )
-
-    return trainloader, testloader
-
-
-def get_model(model_name: str, model_config: Dict[str, Any]) -> nn.Module:
-    """Get PyTorch model."""
-    # get model constructor
-    return __import__("src.models." + model_name, fromlist=[model_name]).get_model(
-        **model_config
-    )
-
-
 def set_logger(
     filename: str,
     mode: str = "a",
@@ -87,7 +37,7 @@ def set_logger(
     backupcnt: int = 100,
 ) -> None:
     """Create and get the logger for the console and files."""
-    logger = logging.getLogger()
+    logger = logging.getLogger("model_compression")
     logger.setLevel(level)
 
     chdlr = logging.StreamHandler(sys.stdout)
@@ -107,46 +57,15 @@ def set_logger(
     logger.addHandler(fhdlr)
 
 
-def save_checkpoint(state: Dict[str, Any], path: str, filename: str) -> None:
-    """Save checkpoint including """
-    filepath = os.path.join(path, filename)
-    torch.save(state, filepath)
+def get_logger() -> logging.Logger:
+    """Get logger instance."""
+    return logging.getLogger("model_compression")
 
 
-def get_latest_file(filepath: str) -> str:
+def get_latest_file(filepath: str, pattern: str = "*") -> str:
     """Get the latest file from the input filepath."""
-    return max(glob.glob(filepath + "/*"), key=os.path.getctime)
-
-
-def wlog_weight(model: nn.Module) -> None:
-    """Log weights on wandb."""
-    wlog = dict()
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            continue
-        layer_name, weight_type = name.rsplit(".", 1)
-
-        # get params(weight, bias, weight_orig)
-        if weight_type in ("weight", "bias", "weight_orig"):
-            w_name = "params/" + layer_name + "." + weight_type
-            weight = eval("model." + dot2bracket(layer_name) + "." + weight_type)
-            weight = weight.cpu().data.numpy()
-            wlog.update({w_name: wandb.Histogram(weight)})
-        else:
-            continue
-
-        # get masked weights
-        if weight_type == "weight_orig":
-            w_name = "params/" + layer_name + ".weight"
-            named_buffers = eval(
-                "model." + dot2bracket(layer_name) + ".named_buffers()"
-            )
-            mask: Tuple[str, torch.Tensor] = next(
-                x for x in list(named_buffers) if x[0] == "weight_mask"
-            )[1].cpu().data.numpy()
-            masked_weight = weight[np.where(mask == 1.0)]
-            wlog.update({w_name: wandb.Histogram(masked_weight)})
-    wandb.log(wlog, commit=False)
+    filelist = glob.glob(os.path.join(filepath, pattern))
+    return max(filelist, key=os.path.getctime) if filelist else ""
 
 
 def dot2bracket(s: str) -> str:

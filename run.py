@@ -8,6 +8,7 @@
 
 import argparse
 import datetime
+import glob
 import os
 import shutil
 
@@ -24,6 +25,9 @@ parser.add_argument(
     "--config", type=str, default="naive_lth_simple", help="Configuration name"
 )
 parser.add_argument(
+    "--resume", type=str, default="", help="Input log directory name to resume"
+)
+parser.add_argument(
     "--wlog", dest="wlog", action="store_true", help="Turns on wandb logging"
 )
 parser.add_argument("--gpu", default=0, type=int, help="GPU id to use.")
@@ -35,25 +39,44 @@ device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
 
 # create directories
 curr_time = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
-for name in ["", "data", "checkpoint", f"checkpoint/{curr_time}"]:
+dir_to_create = ["", "data", "checkpoint"]
+dir_to_create += [f"checkpoint/{curr_time}"] if not args.resume else []
+for name in dir_to_create:
     path = os.path.join("save", name)
     if not os.path.exists(path):
         os.mkdir(path)
-dir_prefix = f"save/checkpoint/{curr_time}"
+
+# resume or load existing configurations
+checkpt_dir = "save/checkpoint"
+if args.resume:
+    dir_prefix = os.path.join(checkpt_dir, args.resume)
+    assert os.path.exists(dir_prefix), f"{dir_prefix} does not exist"
+    config_path = glob.glob(os.path.join(dir_prefix, "*.py"))[0]
+    config_from = config_path.rsplit(".", 1)[0].replace("/", ".")
+else:
+    dir_prefix = os.path.join(checkpt_dir, curr_time)
+    config_name = f"{args.config}.py"
+    shutil.copyfile(f"config/{config_name}", os.path.join(dir_prefix, f"{config_name}"))
+    config_from = "config." + args.config
+config = __import__(config_from, fromlist=["config"]).config
 
 # set logger
 utils.set_logger(filename=os.path.join(dir_prefix, f"{args.config}.log"))
 
-# load and copy configurations
-config = __import__("src.config." + args.config, fromlist=["config"]).config
-shutil.copyfile(
-    f"src/config/{args.config}.py", os.path.join(dir_prefix, f"{args.config}.config")
-)
-
 # set random seed
 utils.set_random_seed(config["SEED"])
 
-# run module
-wandb_init_params = dict(config=config, name=curr_time, group=args.config)
-module = __import__("src." + args.module, fromlist=[args.module])
-module.run(config, dir_prefix, device, args.wlog, wandb_init_params)
+# create a module to run
+wandb_name = args.resume if args.resume else curr_time
+wandb_init_params = dict(config=config, name=wandb_name, group=args.config)
+module = __import__("src.runners." + args.module, fromlist=[args.module])
+
+# run the module
+module.run(
+    config=config,
+    dir_prefix=dir_prefix,
+    device=device,
+    wandb_init_params=wandb_init_params,
+    wandb_log=args.wlog,
+    resume_info_path=args.resume,
+)
