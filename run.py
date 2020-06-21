@@ -40,23 +40,25 @@ device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
 # create directories
 curr_time = datetime.datetime.now().strftime("%y%m%d_%H%M%S")
 dir_to_create = ["", "data", "checkpoint"]
-dir_to_create += [f"checkpoint/{curr_time}"] if not args.resume else []
+dir_to_create += [os.path.join("checkpoint", curr_time)] if not args.resume else []
 for name in dir_to_create:
     path = os.path.join("save", name)
     if not os.path.exists(path):
         os.mkdir(path)
 
 # resume or load existing configurations
-checkpt_dir = "save/checkpoint"
+checkpt_dir = os.path.join("save", "checkpoint")
 if args.resume:
     dir_prefix = os.path.join(checkpt_dir, args.resume)
     assert os.path.exists(dir_prefix), f"{dir_prefix} does not exist"
     config_path = glob.glob(os.path.join(dir_prefix, "*.py"))[0]
-    config_from = config_path.rsplit(".", 1)[0].replace("/", ".")
+    config_from = config_path.rsplit(".", 1)[0].replace(os.path.sep, ".")
 else:
     dir_prefix = os.path.join(checkpt_dir, curr_time)
     config_name = f"{args.config}.py"
-    shutil.copyfile(f"config/{config_name}", os.path.join(dir_prefix, f"{config_name}"))
+    shutil.copyfile(
+        os.path.join("config", config_name), os.path.join(dir_prefix, f"{config_name}")
+    )
     config_from = "config." + args.config
 config = __import__(config_from, fromlist=["config"]).config
 

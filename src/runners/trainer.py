@@ -90,7 +90,7 @@ class Trainer(Runner):
         if latest_file_path and os.path.exists(latest_file_path):
             logger.info(f"Resume training from {self.dir_prefix}")
             self.load_params(latest_file_path)
-            _, self.checkpt_dir, filename = latest_file_path.rsplit("/", 2)
+            _, self.checkpt_dir, filename = latest_file_path.rsplit(os.path.sep, 2)
             # fetch the last epoch from the filename
             last_epoch = int(filename.split("_", 1)[0])
         return last_epoch + 1
@@ -215,7 +215,9 @@ class Trainer(Runner):
         }
         filepath = os.path.join(model_path, f"{filename}.{self.fileext}")
         torch.save(params, filepath)
-        logger.info(f"Saved model in {model_path}/{filename}.{self.fileext}")
+        logger.info(
+            f"Saved model in {model_path}{os.path.sep}{filename}.{self.fileext}"
+        )
 
         if record_path:
             with open(

@@ -143,7 +143,7 @@ class Pruner(Runner):
         latest_file_path = self._fetch_latest_checkpt()
         if latest_file_path and os.path.exists(latest_file_path):
             logger.info(f"Resume pruning from {self.dir_prefix}")
-            _, checkpt_dir, _ = latest_file_path.rsplit("/", 2)
+            _, checkpt_dir, _ = latest_file_path.rsplit(os.path.sep, 2)
             # fetch the last iter from the filename
             if checkpt_dir != self.pretrain_dir_name:
                 last_iter = int(checkpt_dir.split("_", 1)[0])
