@@ -65,7 +65,8 @@ class Runner(ABC):
 
         # dataloader for training
         transform_train = getattr(
-            __import__("src.augment", fromlist=["augment"]), transform_train
+            __import__("src.augmentation.policies", fromlist=["augment"]),
+            transform_train,
         )()
         trainset = dataset(
             root="save/data", train=True, download=True, transform=transform_train,
@@ -76,13 +77,14 @@ class Runner(ABC):
 
         # dataloader for testing
         transform_test = getattr(
-            __import__("src.augment", fromlist=["augment"]), transform_test
+            __import__("src.augmentation.policies", fromlist=["augment"]),
+            transform_test,
         )()
         testset = dataset(
             root="save/data", train=False, download=False, transform=transform_test,
         )
         testloader = data.DataLoader(
-            testset, batch_size=batch_size, shuffle=True, num_workers=n_workers,
+            testset, batch_size=batch_size, shuffle=False, num_workers=n_workers,
         )
 
         return trainloader, testloader
