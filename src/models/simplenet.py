@@ -13,7 +13,7 @@ __all__ = ["get_model"]
 class SimpleNet(nn.Module):
     """SimpleNet architecture."""
 
-    def __init__(self, num_classes: int = 10) -> None:
+    def __init__(self, num_classes: int) -> None:
         """Initialize."""
         super(SimpleNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 3)

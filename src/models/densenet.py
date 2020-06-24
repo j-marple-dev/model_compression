@@ -97,8 +97,8 @@ class DenseNet(nn.Module):
 
     def __init__(
         self,
+        num_classes: int,
         depth: int = 22,
-        num_classes: int = 10,
         growthRate: int = 12,
         compressionRate: int = 2,
         dropRate: int = 0,

@@ -5,21 +5,23 @@
 - Email: jwpark@jmarple.ai
 """
 
+from collections import defaultdict
 import os
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, DefaultDict, Dict, List, Tuple
 
 from progressbar import progressbar
 import torch
-import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import wandb
 
 from src.format import default_format, percent_format
+from src.losses import get_loss
 from src.lr_schedulers import WarmupCosineLR
 from src.runners.runner import Runner
-from src.utils import get_logger
+import src.utils as utils
 
-logger = get_logger()
+logger = utils.get_logger()
 
 
 class Trainer(Runner):
@@ -41,19 +43,25 @@ class Trainer(Runner):
         self.reset(checkpt_dir)
 
         # create a model
-        self.model = self.get_model().to(self.device)
+        model_name = self.config["MODEL_NAME"]
+        model_config = self.config["MODEL_PARAMS"]
+        self.model = utils.get_model(model_name, model_config).to(self.device)
 
         # create dataloaders
-        self.trainloader, self.testloader = self.get_dataset(
+        self.trainloader, self.testloader = utils.get_dataset(
             config["BATCH_SIZE"],
             config["N_WORKERS"],
             config["DATASET"],
             config["AUG_TRAIN"],
             config["AUG_TEST"],
         )
+        logger.info("Data preparation done")
 
         # define criterion and optimizer
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = get_loss(
+            model=self.model, config=self.config, device=self.device
+        )
+
         self.optimizer = optim.SGD(
             self.model.parameters(),
             lr=self.config["LR"],
@@ -72,6 +80,8 @@ class Trainer(Runner):
         # create logger
         if wandb_log:
             wandb.init(**wandb_init_params)
+
+        self.n_correct_epoch: DefaultDict[str, int] = defaultdict(lambda: 0)
 
     def reset(self, checkpt_dir: str) -> None:
         """Reset the configurations."""
@@ -102,6 +112,7 @@ class Trainer(Runner):
         if resume_info_path:
             start_epoch = self.resume()
 
+        # reset best_acc
         for epoch in range(start_epoch, self.config["EPOCHS"]):
             self.run_one_epoch(epoch)
 
@@ -120,10 +131,10 @@ class Trainer(Runner):
         test_loss, test_acc = self.test_one_epoch()
 
         # save model
-        if test_acc > self.best_acc:
-            self.best_acc = test_acc
-            filename = str(epoch) + "_" + f"{test_acc:.2f}".replace(".", "_")
-            self.save_params(self.best_model_path, filename, epoch, test_acc)
+        if test_acc["model_acc"] > self.best_acc:
+            self.best_acc = test_acc["model_acc"]
+            filename = str(epoch) + "_" + f"{self.best_acc:.2f}".replace(".", "_")
+            self.save_params(self.best_model_path, filename, epoch, self.best_acc)
 
         # log
         if not extra_log_info:
@@ -132,9 +143,9 @@ class Trainer(Runner):
         log_info: List[Tuple[str, float, Callable[[float], str]]] = []
         log_info.append(("train/lr", lr, default_format))
         log_info.append(("train/loss", train_loss, default_format))
-        log_info.append(("train/acc", train_acc, percent_format))
+        log_info += [("train/" + k, v, percent_format) for k, v in train_acc.items()]
         log_info.append(("test/loss", test_loss, default_format))
-        log_info.append(("test/acc", test_acc, percent_format))
+        log_info += [("test/" + k, v, percent_format) for k, v in test_acc.items()]
         log_info.append(("test/best_acc", self.best_acc, percent_format))
         self.log_one_epoch(epoch, log_info + extra_log_info)
 
@@ -148,15 +159,35 @@ class Trainer(Runner):
 
         # logging
         if self.wandb_log:
-            self.wlog_weight(self.model)
+            utils.wlog_weight(self.model)
             wandb.log(dict((name, val) for name, val, _ in log_info))
 
-    def train_one_epoch(self) -> Tuple[float, float]:
+    def count_correct_prediction(
+        self, logits: Dict[str, torch.Tensor], labels: torch.Tensor
+    ) -> None:
+        """Count correct prediction in one iteration."""
+        for module_name, logit in logits.items():
+            _, predicted = torch.max(F.softmax(logit, dim=1).data, 1)
+            n_correct = int((predicted == labels).sum().cpu())
+            self.n_correct_epoch[module_name] += n_correct
+
+    def get_epoch_accuracy(self, is_test: bool = False) -> Dict[str, float]:
+        """Get accuracy and reset statistics."""
+        acc = dict()
+        n_total = (
+            len(self.testloader.dataset) if is_test else len(self.trainloader.dataset)
+        )
+        for module_name in self.n_correct_epoch:
+            accuracy = 100 * self.n_correct_epoch[module_name] / n_total
+            acc.update({module_name + "_acc": accuracy})
+            self.n_correct_epoch[module_name] = 0
+        return acc
+
+    def train_one_epoch(self) -> Tuple[float, Dict[str, float]]:
         """Train one epoch."""
-        correct = total = 0
         losses = []
         self.model.train()
-        for data in progressbar(self.trainloader):
+        for data in progressbar(self.trainloader, prefix="[Train]\t"):
             # get the inputs; data is a list of [inputs, labels]
             images, labels = data[0].to(self.device), data[1].to(self.device)
 
@@ -164,40 +195,35 @@ class Trainer(Runner):
             self.optimizer.zero_grad()
 
             # forward + backward + optimize
-            outputs = self.model(images)
-            loss = self.criterion(outputs, labels)
+            loss, outputs = self.criterion(images=images, labels=labels)
+            self.count_correct_prediction(outputs, labels)
             loss.backward()
             self.optimizer.step()
+
             losses.append(loss.item())
 
-            # compute accuracy
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-        train_acc = 100.0 * correct / total
-
         avg_loss = sum(losses) / len(losses)
-        return avg_loss, train_acc
+        acc = self.get_epoch_accuracy()
+        return avg_loss, acc
 
-    def test_one_epoch(self) -> Tuple[float, float]:
+    def test_one_epoch(self) -> Tuple[float, Dict[str, float]]:
         """Test one epoch."""
-        correct = total = 0
         losses = []
         self.model.eval()
-        for data in progressbar(self.testloader):
+        for data in progressbar(self.testloader, prefix="[Test]\t"):
             images, labels = data[0].to(self.device), data[1].to(self.device)
-            outputs = self.model(images)
-            loss = self.criterion(outputs, labels)
+
+            # forward + backward + optimize
+            with torch.no_grad():
+                loss, outputs = self.criterion(images=images, labels=labels)
+
+            self.count_correct_prediction(outputs, labels)
+
             losses.append(loss.item())
 
-            # compute accuracy
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-        test_acc = 100.0 * correct / total
-
         avg_loss = sum(losses) / len(losses)
-        return avg_loss, test_acc
+        acc = self.get_epoch_accuracy(is_test=True)
+        return avg_loss, acc
 
     def save_params(
         self,
@@ -228,8 +254,8 @@ class Trainer(Runner):
     def load_params(self, model_path: str, with_mask=True) -> None:
         """Load weights and masks."""
         checkpt = torch.load(model_path)
-        self.initialize_params(self.model, checkpt["state_dict"], with_mask=with_mask)
-        self.initialize_params(self.optimizer, checkpt["optimizer"], with_mask=False)
+        utils.initialize_params(self.model, checkpt["state_dict"], with_mask=with_mask)
+        utils.initialize_params(self.optimizer, checkpt["optimizer"], with_mask=False)
         logger.info(f"Loaded parameters from {model_path}")
 
 

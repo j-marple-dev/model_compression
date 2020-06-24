@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Configurations for naive lottery ticket hypothesis with vanilla cnn.
+"""Configurations for naive lottery ticket hypothesis with kd, simplenet.
 
 - Author: Junghoon Kim
 - Email: jhkim@jmarple.ai
@@ -14,8 +14,10 @@ config = {
     "DATASET": "CIFAR100",
     "MODEL_NAME": "simplenet",
     "MODEL_PARAMS": dict(num_classes=100),
-    "CRITERION": "CrossEntropy",  # CrossEntropy, HintonKLD
-    "CRITERION_PARAMS": dict(),  # dict(), dict(T=4, alpha=0.9),
+    "TEACHER_MODEL_NAME": "simplenet",  # simplenet, densenet_large
+    "TEACHER_MODEL_PARAMS": dict(num_classes=100),
+    "CRITERION": "HintonKLD",  # CrossEntropy, HintonKLD
+    "CRITERION_PARAMS": dict(T=4, alpha=0.9),  # dict(), dict(T=4, alpha=0.9),
     "BATCH_SIZE": 512,
     "START_LR": 1e-4,
     "LR": 0.1,

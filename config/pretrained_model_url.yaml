@@ -1,0 +1,10 @@
+# densenet // L=190, k=40, num_classes=100
+'12670f7168d40a4a965a2fa44a5ae49cf928fa528b51083f4cab47e7':
+    dir_name: densenet_large_numclasses_100
+    file_name: model_best.pth.tar
+    link: https://drive.google.com/u/0/uc?export=download&confirm=ilUf&id=1Mwr6pmdWN7r4wgmE1nYqEUDyuwLt5ce5
+# simplenet // num_classes=100
+'0b6467925097c132ffce953ea6ddf744f28b167beebb293c48bb5a3c': 
+    dir_name: simplenet_numclasses_100
+    file_name: model_best.pth.tar
+    link: https://drive.google.com/u/0/uc?id=12rKUVZNDucVfxi4G3fLJwahF2dxKDOfZ&export=download
