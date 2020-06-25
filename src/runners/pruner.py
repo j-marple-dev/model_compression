@@ -14,9 +14,9 @@ import torch.nn as nn
 import torch.nn.utils.prune as prune
 
 from src.format import percent_format
+from src.models import utils as model_utils
 from src.runners.runner import Runner
 from src.runners.trainer import Trainer
-import src.utils as utils
 from src.utils import get_logger
 
 logger = get_logger()
@@ -43,7 +43,7 @@ class Pruner(Runner):
 
         # create an initial model
         self.trainer = Trainer(
-            config=self.config,
+            config=self.config["TRAIN_CONFIG"],
             dir_prefix=dir_prefix,
             checkpt_dir=self.pretrain_dir_name,
             device=device,
@@ -217,7 +217,9 @@ class Pruner(Runner):
         n_zero = n_total = 0
 
         for w in self.param_names:
-            param_instance = eval("self.model." + utils.dot2bracket(w) + ".weight_mask")
+            param_instance = eval(
+                "self.model." + model_utils.dot2bracket(w) + ".weight_mask"
+            )
             n_zero += int(torch.sum(param_instance == 0.0).item())
             n_total += param_instance.nelement()
 
@@ -232,7 +234,10 @@ class Pruner(Runner):
             layer_name, weight_type = name.rsplit(".", 1)
             if weight_type == "weight" or (bias and weight_type == "bias"):
                 t.append(
-                    (eval("self.model." + utils.dot2bracket(layer_name)), weight_type)
+                    (
+                        eval("self.model." + model_utils.dot2bracket(layer_name)),
+                        weight_type,
+                    )
                 )
         return tuple(t)
 
@@ -245,22 +250,3 @@ class Pruner(Runner):
             layer_name, weight_type = name.rsplit(".", 1)
             t.add(layer_name)
         return t
-
-
-def run(
-    config: Dict[str, Any],
-    dir_prefix: str,
-    device: torch.device,
-    wandb_init_params: Dict[str, Any],
-    wandb_log: bool,
-    resume_info_path: str,
-) -> None:
-    """Run pruning process."""
-    pruner = Pruner(
-        config=config,
-        dir_prefix=dir_prefix,
-        wandb_log=wandb_log,
-        wandb_init_params=wandb_init_params,
-        device=device,
-    )
-    pruner.run(resume_info_path)

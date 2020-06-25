@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Configurations for autoaugmentation test.
+"""Configurations for training as baseline.
 
 - Author: Curt-Park
 - Email: jwpark@jmarple.ai
@@ -7,14 +7,15 @@
 
 import os
 
-# available for trainer only
 config = {
     "SEED": 777,
-    "AUG_TRAIN": "autoaugment_train_cifar100",
+    "AUG_TRAIN": "simple_augment_train_cifar100",
     "AUG_TEST": "simple_augment_test_cifar100",
     "DATASET": "CIFAR100",
     "MODEL_NAME": "densenet",
     "MODEL_PARAMS": dict(depth=100, num_classes=100, growthRate=12, compressionRate=2),
+    "CRITERION": "CrossEntropy",
+    "CRITERION_PARAMS": dict(),
     "BATCH_SIZE": 32,
     "START_LR": 1e-5,
     "LR": 0.1,

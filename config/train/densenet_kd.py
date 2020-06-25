@@ -5,15 +5,10 @@
 - Email: jhkim@jmarple.ai
 """
 
-import os
+from config.train import densenet_small
 
-config = {
-    "SEED": 777,
-    "AUG_TRAIN": "simple_augment_train_cifar100",
-    "AUG_TEST": "simple_augment_test_cifar100",
-    "DATASET": "CIFAR100",
-    "MODEL_NAME": "simplenet",
-    "MODEL_PARAMS": dict(num_classes=100),
+config = densenet_small.config
+config_override = {
     "TEACHER_MODEL_NAME": "densenet",  # simplenet, densenet_large
     "TEACHER_MODEL_PARAMS": dict(
         depth=190, growthRate=40, compressionRate=2, num_classes=100
@@ -27,9 +22,5 @@ config = {
     "WEIGHT_DECAY": 1e-4,
     "WARMUP_EPOCHS": 3,
     "EPOCHS": 5,
-    "N_PRUNING_ITER": 3,
-    "PRUNE_AMOUNT": 0.2,
-    "STORE_PARAM_BEFORE": 0,  # final weights: EPOCHS
-    "PRUNE_START_FROM": 0,
-    "N_WORKERS": os.cpu_count(),
 }
+config.update(config_override)

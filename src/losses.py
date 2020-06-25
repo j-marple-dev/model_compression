@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.models import utils as model_utils
 import src.utils as utils
 
 logger = utils.get_logger()
@@ -87,26 +88,26 @@ class HintonKLD(Loss):
         ), "No teacher model specified while criterion requires teacher"
 
         # create teacher instance
-        teacher = utils.get_model(
+        teacher = model_utils.get_model(
             self.config["TEACHER_MODEL_NAME"], self.config["TEACHER_MODEL_PARAMS"]
         ).to(self.device)
 
         # teacher path info
         prefix = os.path.join("save", "pretrained")
-        model_info = utils.get_pretrained_model_info(teacher)
+        model_info = model_utils.get_pretrained_model_info(teacher)
         model_name, file_name = model_info["dir_name"], model_info["file_name"]
         file_path = os.path.join(prefix, model_name, file_name)
 
         # load teacher model params:
         if not os.path.isfile(file_path):
-            utils.download_pretrained_model(file_path, model_info["link"])
+            model_utils.download_pretrained_model(file_path, model_info["link"])
             logger.info(
                 f"Pretrained teacher model({model_name}) doesn't exist in the path.\t"
                 f"Download teacher model as {file_path}"
             )
 
         logger.info(f"Load teacher model: {file_path}")
-        utils.initialize_params(
+        model_utils.initialize_params(
             model=teacher, state_dict=torch.load(file_path)["state_dict"],
         )
         teacher = teacher.to(self.device)

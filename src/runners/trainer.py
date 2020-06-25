@@ -18,6 +18,7 @@ import wandb
 from src.format import default_format, percent_format
 from src.losses import get_loss
 from src.lr_schedulers import WarmupCosineLR
+from src.models import utils as model_utils
 from src.runners.runner import Runner
 import src.utils as utils
 
@@ -45,7 +46,7 @@ class Trainer(Runner):
         # create a model
         model_name = self.config["MODEL_NAME"]
         model_config = self.config["MODEL_PARAMS"]
-        self.model = utils.get_model(model_name, model_config).to(self.device)
+        self.model = model_utils.get_model(model_name, model_config).to(self.device)
 
         # create dataloaders
         self.trainloader, self.testloader = utils.get_dataset(
@@ -159,7 +160,7 @@ class Trainer(Runner):
 
         # logging
         if self.wandb_log:
-            utils.wlog_weight(self.model)
+            model_utils.wlog_weight(self.model)
             wandb.log(dict((name, val) for name, val, _ in log_info))
 
     def count_correct_prediction(
@@ -254,26 +255,10 @@ class Trainer(Runner):
     def load_params(self, model_path: str, with_mask=True) -> None:
         """Load weights and masks."""
         checkpt = torch.load(model_path)
-        utils.initialize_params(self.model, checkpt["state_dict"], with_mask=with_mask)
-        utils.initialize_params(self.optimizer, checkpt["optimizer"], with_mask=False)
+        model_utils.initialize_params(
+            self.model, checkpt["state_dict"], with_mask=with_mask
+        )
+        model_utils.initialize_params(
+            self.optimizer, checkpt["optimizer"], with_mask=False
+        )
         logger.info(f"Loaded parameters from {model_path}")
-
-
-def run(
-    config: Dict[str, Any],
-    dir_prefix: str,
-    device: torch.device,
-    wandb_init_params: Dict[str, Any],
-    wandb_log: bool,
-    resume_info_path: str,
-) -> None:
-    """Run training process."""
-    trainer = Trainer(
-        config=config,
-        dir_prefix=dir_prefix,
-        checkpt_dir="train",
-        wandb_log=wandb_log,
-        wandb_init_params=wandb_init_params,
-        device=device,
-    )
-    trainer.run(resume_info_path)
