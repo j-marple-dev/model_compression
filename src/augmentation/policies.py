@@ -7,7 +7,11 @@
 
 import torchvision.transforms as transforms
 
-from src.augmentation.methods import AutoAugmentation, SequentialAugmentation
+from src.augmentation.methods import (
+    AutoAugmentation,
+    RandAugmentation,
+    SequentialAugmentation,
+)
 from src.augmentation.transforms import FILLCOLOR
 
 CIFAR100_INFO = {"MEAN": (0.5071, 0.4865, 0.4409), "STD": (0.2673, 0.2564, 0.2762)}
@@ -101,6 +105,35 @@ def autoaugment_train_cifar100_riair() -> transforms.Compose:
             transforms.RandomCrop(32, padding=4, fill=FILLCOLOR),
             transforms.RandomHorizontalFlip(),
             SequentialAugmentation([("Cutout", 1.0, 9)]),
+            transforms.ToTensor(),
+            transforms.Normalize(CIFAR100_INFO["MEAN"], CIFAR100_INFO["STD"]),
+        ]
+    )
+
+
+def randaugment_train_cifar100() -> transforms.Compose:
+    """Random augmentation policy for training CIFAR100."""
+    operators = [
+        "Identity",
+        "AutoContrast",
+        "Equalize",
+        "Rotate",
+        "Solarize",
+        "Color",
+        "Posterize",
+        "Contrast",
+        "Brightness",
+        "Sharpness",
+        "ShearX",
+        "ShearY",
+        "TranslateX",
+        "TranslateY",
+    ]
+    return transforms.Compose(
+        [
+            RandAugmentation(operators, n_select=2, level=10, n_level=30),
+            transforms.RandomCrop(32, padding=4, fill=FILLCOLOR),
+            transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(CIFAR100_INFO["MEAN"], CIFAR100_INFO["STD"]),
         ]

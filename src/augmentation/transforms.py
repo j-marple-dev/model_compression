@@ -26,6 +26,7 @@ def transforms_info() -> Dict[
 ]:
     """Return augmentation functions and their ranges."""
     transforms_list = [
+        (Identity, 0.0, 0.0),
         (Invert, 0.0, 0.0),
         (Contrast, 0.0, 0.9),
         (AutoContrast, 0.0, 0.0),
@@ -43,6 +44,11 @@ def transforms_info() -> Dict[
         (Cutout, 0, 0.5),
     ]
     return {f.__name__: (f, low, high) for f, low, high in transforms_list}
+
+
+def Identity(img: Image, _: float) -> Image:
+    """Identity map."""
+    return img
 
 
 def Invert(img: Image, _: float) -> Image:
