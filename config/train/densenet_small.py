@@ -15,7 +15,7 @@ config = {
     "MODEL_NAME": "densenet",
     "MODEL_PARAMS": dict(depth=100, num_classes=100, growthRate=12, compressionRate=2),
     "CRITERION": "CrossEntropy",
-    "CRITERION_PARAMS": dict(),
+    "CRITERION_PARAMS": dict(num_classes=100),
     "BATCH_SIZE": 32,
     "START_LR": 1e-5,
     "LR": 0.1,

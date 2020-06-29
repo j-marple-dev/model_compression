@@ -60,7 +60,10 @@ class Trainer(Runner):
 
         # define criterion and optimizer
         self.criterion = get_loss(
-            model=self.model, config=self.config, device=self.device
+            model=self.model,
+            criterion_name=self.config["CRITERION"],
+            criterion_params=self.config["CRITERION_PARAMS"],
+            device=self.device,
         )
 
         self.optimizer = optim.SGD(

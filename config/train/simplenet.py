@@ -15,7 +15,7 @@ config = {
     "MODEL_NAME": "simplenet",
     "MODEL_PARAMS": dict(num_classes=100),
     "CRITERION": "CrossEntropy",
-    "CRITERION_PARAMS": dict(),
+    "CRITERION_PARAMS": dict(num_classes=100),
     "BATCH_SIZE": 64,
     "START_LR": 1e-4,
     "LR": 0.1,

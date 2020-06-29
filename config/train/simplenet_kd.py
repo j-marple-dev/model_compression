@@ -9,11 +9,15 @@ from config.train import simplenet
 
 config = simplenet.config
 config_override = {
-    "TEACHER_MODEL_NAME": "simplenet",  # simplenet, densenet_large
-    "TEACHER_MODEL_PARAMS": dict(num_classes=100),
-    "CRITERION": "HintonKLD",  # CrossEntropy, HintonKLD
-    "CRITERION_PARAMS": dict(T=4, alpha=0.9),  # dict(), dict(T=4, alpha=0.9),
-    "BATCH_SIZE": 512,
+    "CRITERION": "HintonKLD",
+    "CRITERION_PARAMS": dict(
+        T=4.0,
+        alpha=0.9,
+        teacher_model_name="simplenet",
+        teacher_model_params=dict(num_classes=100),
+        crossentropy_params=dict(num_classes=100),
+    ),
+    "BATCH_SIZE": 16,
     "START_LR": 1e-4,
     "LR": 0.1,
     "MOMENTUM": 0.9,

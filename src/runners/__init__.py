@@ -15,6 +15,7 @@ from typing import Any, Dict, Tuple
 
 import torch
 
+from config.config_validator import PruneConfigValidator, TrainConfigValidator
 import src.utils as utils
 
 # create directories
@@ -49,11 +50,17 @@ def initialize(
         shutil.copyfile(config_path, os.path.join(dir_prefix, config_name))
     config = run_path(config_path)["config"]
 
-    # set random seed
-    utils.set_random_seed(config["SEED"])
-
     # set logger
     config_name = os.path.splitext(config_name)[0]
     utils.set_logger(filename=os.path.join(dir_prefix, f"{config_name}.log"))
+
+    # config validation check
+    if "train" in config_path:
+        TrainConfigValidator(config).check()
+    elif "prune" in config_path:
+        PruneConfigValidator(config).check()
+
+    # set random seed
+    utils.set_random_seed(config["SEED"])
 
     return config, dir_prefix, device

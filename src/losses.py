@@ -21,9 +21,7 @@ logger = utils.get_logger()
 class Loss(nn.Module):
     """Base class for loss."""
 
-    def __init__(
-        self, model: nn.Module, config: Dict[str, Any], device: torch.device
-    ) -> None:
+    def __init__(self, model: nn.Module, device: torch.device) -> None:
         """Initialize.
 
         Args:
@@ -33,7 +31,6 @@ class Loss(nn.Module):
         """
         super().__init__()
         self.model = model
-        self.config = config
         self.device = device
 
 
@@ -51,46 +48,30 @@ class HintonKLD(Loss):
     """
 
     def __init__(
-        self, model: nn.Module, config: Dict[str, Any], device: torch.device
+        self,
+        model: nn.Module,
+        device: torch.device,
+        T: float,
+        alpha: float,
+        teacher_model_name: str,
+        teacher_model_params: Dict[str, Any],
+        crossentropy_params: Dict[str, Any],
     ) -> None:
         """Initialize cross entropy loss."""
-        super().__init__(model, config, device)
-        self.T = (
-            self.config["CRITERION_PARAMS"]["T"]
-            if "T" in self.config["CRITERION_PARAMS"].keys()
-            else 4.0
-        )
-        assert 0.0 < self.T, (
-            f"Hinton loss param, temperature({self.T}) "
-            "is invalid value(not a positive)"
-        )
-        self.alpha = (
-            self.config["CRITERION_PARAMS"]["alpha"]
-            if "alpha" in self.config["CRITERION_PARAMS"].keys()
-            else 0.9
-        )
-        assert 0.0 <= self.alpha <= 1.0, (
-            f"Hinton loss param, alpha({self.alpha}) "
-            "is invalid value(not in range 0~1)"
-        )
+        super().__init__(model, device)
+        self.cross_entropy = CrossEntropy(model, device, **crossentropy_params)
+        self.T = T
+        self.alpha = alpha
+        self.teacher = self._create_teacher(teacher_model_name, teacher_model_params)
 
-        self.cross_entropy = CrossEntropy(model, config, device)
-        self.teacher = self._create_teacher()
-
-    def _create_teacher(self) -> nn.Module:
+    def _create_teacher(
+        self, teacher_model_name: str, teacher_model_params: Dict[str, Any]
+    ) -> nn.Module:
         """Create teacher network."""
-        # exsitense of teacher config
-        assert (
-            "TEACHER_MODEL_NAME" in self.config
-            and "TEACHER_MODEL_PARAMS" in self.config
-        ) and (
-            self.config["TEACHER_MODEL_NAME"] and self.config["TEACHER_MODEL_PARAMS"]
-        ), "No teacher model specified while criterion requires teacher"
-
         # create teacher instance
-        teacher = model_utils.get_model(
-            self.config["TEACHER_MODEL_NAME"], self.config["TEACHER_MODEL_PARAMS"]
-        ).to(self.device)
+        teacher = model_utils.get_model(teacher_model_name, teacher_model_params).to(
+            self.device
+        )
 
         # teacher path info
         prefix = os.path.join("save", "pretrained")
@@ -163,22 +144,16 @@ class CrossEntropy(Loss):
 
     Attributes:
         log_softmax (nn.Module): log softmax function.
-        size_average (bool): param in cross entropy loss,
-            if true, losses are averaged over the minibatch size,
-            else, losses are summed only.
+        num_classes (int): number of classes in dataset, to get onehot labels
     """
 
     def __init__(
-        self, model: nn.Module, config: Dict[str, Any], device: torch.device
+        self, model: nn.Module, device: torch.device, num_classes: int
     ) -> None:
         """Initialize cross entropy loss."""
-        super().__init__(model, config, device)
+        super().__init__(model, device)
         self.log_softmax = nn.LogSoftmax(dim=1)
-        self.size_average = (
-            config["CRITERION_PARAMS"]["size_average"]
-            if "size_average" in config["CRITERION_PARAMS"]
-            else True
-        )
+        self.num_classes = num_classes
 
     def forward(
         self, images: torch.Tensor, labels: torch.Tensor
@@ -210,7 +185,7 @@ class CrossEntropy(Loss):
         onehot_labels = self._to_onehot(labels)
         log_y = self.log_softmax(logit)
         loss_total = torch.sum(-onehot_labels * log_y, dim=1)
-        return torch.mean(loss_total) if self.size_average else torch.sum(loss_total)
+        return torch.mean(loss_total)
 
     def _to_onehot(self, labels: torch.Tensor) -> torch.Tensor:
         """Convert index based labels into one-hot based labels.
@@ -218,14 +193,15 @@ class CrossEntropy(Loss):
            If labels are one-hot based already(e.g. [0.9, 0.01, 0.03,...]),do nothing.
         """
         if len(labels.size()) == 1:
-            labels = nn.functional.one_hot(
-                labels, num_classes=self.config["MODEL_PARAMS"]["num_classes"]
-            )
+            labels = nn.functional.one_hot(labels, num_classes=self.num_classes)
         return labels.float().to(self.device)
 
 
 def get_loss(
-    model: nn.Module, config: Dict[str, Any], device: torch.device
+    model: nn.Module,
+    criterion_name: str,
+    criterion_params: Dict[str, Any],
+    device: torch.device,
 ) -> nn.Module:
     """Create loss class."""
-    return eval(config["CRITERION"])(model, config, device)
+    return eval(criterion_name)(model, device, **criterion_params)
