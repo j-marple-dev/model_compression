@@ -131,9 +131,10 @@ def randaugment_train_cifar100() -> transforms.Compose:
     ]
     return transforms.Compose(
         [
-            RandAugmentation(operators, n_select=2, level=10, n_level=30),
+            RandAugmentation(operators, n_select=2, level=10, n_level=31),
             transforms.RandomCrop(32, padding=4, fill=FILLCOLOR),
             transforms.RandomHorizontalFlip(),
+            SequentialAugmentation([("Cutout", 1.0, 9)]),
             transforms.ToTensor(),
             transforms.Normalize(CIFAR100_INFO["MEAN"], CIFAR100_INFO["STD"]),
         ]

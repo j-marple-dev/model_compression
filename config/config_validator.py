@@ -100,6 +100,13 @@ class TrainConfigValidator(ConfigValidator):
         assert 0 < self.config["START_LR"] <= self.config["LR"]
         assert isinstance(self.config["START_LR"], float)
 
+        if "CUTMIX" in self.config:
+            cutmix_config = self.config["CUTMIX"]
+            assert "beta" in cutmix_config
+            assert cutmix_config["beta"] > 0
+            assert "prob" in cutmix_config
+            assert 0 < cutmix_config["prob"] <= 1
+
         self.check_criterion()
 
     def check_criterion(self) -> None:

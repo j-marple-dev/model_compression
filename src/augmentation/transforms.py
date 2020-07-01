@@ -17,6 +17,8 @@ import PIL.ImageDraw
 import PIL.ImageEnhance
 import PIL.ImageOps
 
+from src.utils import get_rand_bbox_coord
+
 FILLCOLOR = (128, 128, 128)
 FILLCOLOR_RGBA = (128, 128, 128, 128)
 
@@ -158,16 +160,7 @@ def Cutout(img: Image, magnitude: float) -> Image:
     if magnitude == 0.0:
         return img
     w, h = img.size
-    size_hole_w = int(magnitude * w)
-    size_hole_h = int(magnitude * h)
-    x = random.randint(0, w - 1)
-    y = random.randint(0, h - 1)
-
-    x0 = max(0, x - size_hole_w // 2)
-    y0 = max(0, y - size_hole_h // 2)
-    x1 = min(w, x + size_hole_w // 2)
-    y1 = min(h, y + size_hole_h // 2)
-    xy = [(x0, y0), (x1, y1)]
+    xy = get_rand_bbox_coord(w, h, magnitude)
 
     img = img.copy()
     PIL.ImageDraw.Draw(img).rectangle(xy, fill=FILLCOLOR)

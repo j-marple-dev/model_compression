@@ -182,19 +182,12 @@ class CrossEntropy(Loss):
             loss (torch.Tensor): calculated loss.
         """
         # if labels are index values -> expand to onehot for compatability
-        onehot_labels = self._to_onehot(labels)
+        onehot_labels = utils.to_onehot(labels=labels, num_classes=self.num_classes).to(
+            self.device
+        )
         log_y = self.log_softmax(logit)
         loss_total = torch.sum(-onehot_labels * log_y, dim=1)
         return torch.mean(loss_total)
-
-    def _to_onehot(self, labels: torch.Tensor) -> torch.Tensor:
-        """Convert index based labels into one-hot based labels.
-
-           If labels are one-hot based already(e.g. [0.9, 0.01, 0.03,...]),do nothing.
-        """
-        if len(labels.size()) == 1:
-            labels = nn.functional.one_hot(labels, num_classes=self.num_classes)
-        return labels.float().to(self.device)
 
 
 def get_loss(

@@ -15,6 +15,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import wandb
 
+from src.augmentation.methods import CutMix
 from src.format import default_format, percent_format
 from src.losses import get_loss
 from src.lr_schedulers import WarmupCosineLR
@@ -48,15 +49,25 @@ class Trainer(Runner):
         model_config = self.config["MODEL_PARAMS"]
         self.model = model_utils.get_model(model_name, model_config).to(self.device)
 
-        # create dataloaders
-        self.trainloader, self.testloader = utils.get_dataset(
-            config["BATCH_SIZE"],
-            config["N_WORKERS"],
-            config["DATASET"],
-            config["AUG_TRAIN"],
-            config["AUG_TEST"],
+        # get datasets
+        trainset, testset = utils.get_dataset(
+            config["DATASET"], config["AUG_TRAIN"], config["AUG_TEST"],
         )
-        logger.info("Data preparation done")
+        logger.info("Dataset prepared")
+
+        # transform the training dataset for CutMix augmentation
+        if "CUTMIX" in self.config:
+            trainset = CutMix(
+                trainset,
+                self.config["MODEL_PARAMS"]["num_classes"],
+                **self.config["CUTMIX"],
+            )
+
+        # get dataloaders
+        self.trainloader, self.testloader = utils.get_dataloader(
+            trainset, testset, config["BATCH_SIZE"], config["N_WORKERS"],
+        )
+        logger.info("Dataloader prepared")
 
         # define criterion and optimizer
         self.criterion = get_loss(
@@ -170,6 +181,8 @@ class Trainer(Runner):
         self, logits: Dict[str, torch.Tensor], labels: torch.Tensor
     ) -> None:
         """Count correct prediction in one iteration."""
+        if len(labels.size()) != 1:  # For e.g., CutMix labels
+            return
         for module_name, logit in logits.items():
             _, predicted = torch.max(F.softmax(logit, dim=1).data, 1)
             n_correct = int((predicted == labels).sum().cpu())
@@ -184,7 +197,7 @@ class Trainer(Runner):
         for module_name in self.n_correct_epoch:
             accuracy = 100 * self.n_correct_epoch[module_name] / n_total
             acc.update({module_name + "_acc": accuracy})
-            self.n_correct_epoch[module_name] = 0
+        self.n_correct_epoch.clear()
         return acc
 
     def train_one_epoch(self) -> Tuple[float, Dict[str, float]]:
@@ -194,7 +207,6 @@ class Trainer(Runner):
         for data in progressbar(self.trainloader, prefix="[Train]\t"):
             # get the inputs; data is a list of [inputs, labels]
             images, labels = data[0].to(self.device), data[1].to(self.device)
-
             # zero the parameter gradients
             self.optimizer.zero_grad()
 
