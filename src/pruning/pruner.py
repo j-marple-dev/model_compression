@@ -7,22 +7,21 @@
 
 
 import os
-from typing import Any, Callable, Dict, List, Set, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import torch
-import torch.nn as nn
 import torch.nn.utils.prune as prune
 
 from src.format import percent_format
 from src.models import utils as model_utils
-from src.runners.runner import Runner
-from src.runners.trainer import Trainer
+from src.pruning.abstract import Abstract
+from src.pruning.trainer import Trainer
 from src.utils import get_logger
 
 logger = get_logger()
 
 
-class Pruner(Runner):
+class Pruner(Abstract):
     """Pruner for models."""
 
     def __init__(
@@ -51,10 +50,8 @@ class Pruner(Runner):
             wandb_init_params=wandb_init_params,
         )
         self.model = self.trainer.model
-
-        self.params_to_prune = self.get_weight_tuple(bias=False)
-        self.params_all = self.get_weight_tuple(bias=True)
-        self.param_names = self.get_param_names()
+        self.params_to_prune = model_utils.get_weight_tuple(self.model, bias=False)
+        self.params_all = model_utils.get_weight_tuple(self.model, bias=True)
 
     def reset(
         self, prune_iter: int, resumed: bool = False,
@@ -99,10 +96,10 @@ class Pruner(Runner):
                 )
 
             # sparsities
-            sparsity = self.sparsity()
-            mask_sparsity = self.mask_sparsity()
-            conv_sparsity = self.sparsity(module_name="Conv")
-            fc_sparsity = self.sparsity(module_name="Linear")
+            sparsity = model_utils.sparsity(self.params_all)
+            conv_sparsity = model_utils.sparsity(self.params_all, module_name="Conv")
+            fc_sparsity = model_utils.sparsity(self.params_all, module_name="Linear")
+            mask_sparsity = model_utils.mask_sparsity(self.model)
 
             # directory name for checkpoints
             checkpt_dir = f"{prune_iter}_{(sparsity):.2f}_{self.dir_postfix}".replace(
@@ -199,54 +196,3 @@ class Pruner(Runner):
         self.init_params_path = os.path.join(
             self.dir_prefix, f"{self.init_params_name}.{self.fileext}"
         )
-
-    def sparsity(self, module_name: str = "") -> float:
-        """Get the proportion of zeros in weights (default: model's sparsity)."""
-        n_zero = n_total = 0
-
-        for w in self.params_all:
-            if module_name not in str(w[0]):
-                continue
-            n_zero += int(torch.sum(getattr(w[0], w[1]) == 0.0).item())
-            n_total += getattr(w[0], w[1]).nelement()
-
-        return (100.0 * n_zero / n_total) if n_total != 0 else 0.0
-
-    def mask_sparsity(self) -> float:
-        """Get the ratio of zeros in weight masks."""
-        n_zero = n_total = 0
-
-        for w in self.param_names:
-            param_instance = eval(
-                "self.model." + model_utils.dot2bracket(w) + ".weight_mask"
-            )
-            n_zero += int(torch.sum(param_instance == 0.0).item())
-            n_total += param_instance.nelement()
-
-        return (100.0 * n_zero / n_total) if n_total != 0 else 0.0
-
-    def get_weight_tuple(self, bias: bool = False) -> Tuple[Tuple[nn.Module, str], ...]:
-        """Get weight and bias tuples for pruning."""
-        t = []
-        for name, param in self.model.named_parameters():
-            if not param.requires_grad:
-                continue
-            layer_name, weight_type = name.rsplit(".", 1)
-            if weight_type == "weight" or (bias and weight_type == "bias"):
-                t.append(
-                    (
-                        eval("self.model." + model_utils.dot2bracket(layer_name)),
-                        weight_type,
-                    )
-                )
-        return tuple(t)
-
-    def get_param_names(self) -> Set[str]:
-        """Get param names in the model."""
-        t = set()
-        for name, param in self.model.named_parameters():
-            if not param.requires_grad:
-                continue
-            layer_name, weight_type = name.rsplit(".", 1)
-            t.add(layer_name)
-        return t

@@ -4,6 +4,7 @@
 Reference: https://pytorch.org/tutorials/intermediate/pruning_tutorial.html
 """
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -32,8 +33,7 @@ class SimpleNet(nn.Module):
         x = F.max_pool2d(F.relu(self.bn2(self.conv2(x))), (2, 2))
         x = F.relu(self.bn3(self.conv3(x)))
         x = F.max_pool2d(F.relu(self.bn4(self.conv4(x))), 2)
-        x = x.view(-1, int(x.nelement() / x.shape[0]))
-
+        x = torch.flatten(x, 1)
         x = self.fc1(x)
 
         return x

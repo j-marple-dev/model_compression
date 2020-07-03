@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Runner initialization.
+"""Initialization for training or pruning.
 
 - Author: Curt-Park
 - Email: jwpark@jmarple.ai

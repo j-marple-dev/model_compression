@@ -20,13 +20,13 @@ from src.format import default_format, percent_format
 from src.losses import get_loss
 from src.lr_schedulers import WarmupCosineLR
 from src.models import utils as model_utils
-from src.runners.runner import Runner
+from src.pruning.abstract import Abstract
 import src.utils as utils
 
 logger = utils.get_logger()
 
 
-class Trainer(Runner):
+class Trainer(Abstract):
     """Trainer for models."""
 
     def __init__(

@@ -1,9 +1,9 @@
 # use conda install
-torch == 1.5.0 
+torch == 1.5.0
 torchvision == 0.6.0
 progressbar2 == 3.51.3
 
 # use pip install
-wandb
 gdown == 3.11.1
+wandb
 pyyaml

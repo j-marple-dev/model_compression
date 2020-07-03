@@ -163,7 +163,6 @@ class PruneConfigValidator(ConfigValidator):
 
         self.necessary_config_names = {
             "TRAIN_CONFIG",
-            "EPOCHS",
             "N_PRUNING_ITER",
             "PRUNE_AMOUNT",
             "STORE_PARAM_BEFORE",
@@ -172,15 +171,22 @@ class PruneConfigValidator(ConfigValidator):
 
     def check(self) -> None:
         """Check configs are specified correctly."""
-
-        TrainConfigValidator(self.config["TRAIN_CONFIG"], log=False).check()
-
-        if "SEED" not in self.config:
-            # Prune SEED not specified, set it same to Train SEED
-            self.config.update({"SEED": self.config["TRAIN_CONFIG"]["SEED"]})
-
         # check existence
         self.check_key_exists()
+
+        # validate training config
+        TrainConfigValidator(self.config["TRAIN_CONFIG"], log=False).check()
+
+        # if SEED is not specified, set it same as training config's SEED
+        if "SEED" not in self.config:
+            self.config["SEED"] = self.config["TRAIN_CONFIG"]["SEED"]
+
+        # if EPOCHS is not specified, set it same as training config's EPOCHS
+        if "EPOCHS" not in self.config:
+            self.config["EPOCHS"] = self.config["TRAIN_CONFIG"]["EPOCHS"]
+        # training config should contain the same epoch number in pruning config
+        else:
+            self.config["TRAIN_CONFIG"]["EPOCHS"] = self.config["EPOCHS"]
 
         # check valid range and type
         assert self.config["N_PRUNING_ITER"] > 0

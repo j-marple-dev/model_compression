@@ -9,7 +9,7 @@ import hashlib
 import os
 import re
 import tarfile
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 import gdown
 import numpy as np
@@ -53,6 +53,68 @@ def get_pretrained_model_info(model: nn.Module) -> Dict[str, str]:
     with open("config/pretrained_model_url.yaml", mode="r") as f:
         model_info = yaml.load(f, Loader=yaml.FullLoader)[model_hash]
     return model_info
+
+
+def get_param_names(model: nn.Module) -> Set[str]:
+    """Get param names in the model."""
+    layer_names = set()
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        layer_name, weight_type = name.rsplit(".", 1)
+        layer_names.add(layer_name)
+    return layer_names
+
+
+def get_model_tensor_datatype(model: nn.Module) -> List[Tuple[str, torch.dtype]]:
+    """Print all tensors data types."""
+    return [
+        (name, tensor.dtype)
+        for name, tensor in model.state_dict().items()
+        if hasattr(tensor, "dtype")
+    ]
+
+
+def get_weight_tuple(
+    model: nn.Module, bias: bool = False
+) -> Tuple[Tuple[nn.Module, str], ...]:
+    """Get weight and bias tuples for pruning."""
+    t = []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        layer_name, weight_type = name.rsplit(".", 1)
+        if weight_type == "weight" or (bias and weight_type == "bias"):
+            t.append((eval("model." + dot2bracket(layer_name)), weight_type,))
+    return tuple(t)
+
+
+def sparsity(
+    params_all: Tuple[Tuple[nn.Module, str], ...], module_name: str = ""
+) -> float:
+    """Get the proportion of zeros in weights (default: model's sparsity)."""
+    n_zero = n_total = 0
+
+    for module, wtype in params_all:
+        if module_name not in str(module):
+            continue
+        n_zero += int(torch.sum(getattr(module, wtype) == 0.0).item())
+        n_total += getattr(module, wtype).nelement()
+
+    return (100.0 * n_zero / n_total) if n_total != 0 else 0.0
+
+
+def mask_sparsity(model: nn.Module) -> float:
+    """Get the ratio of zeros in weight masks."""
+    n_zero = n_total = 0
+    param_names = get_param_names(model)
+
+    for w in param_names:
+        param_instance = eval("model." + dot2bracket(w) + ".weight_mask")
+        n_zero += int(torch.sum(param_instance == 0.0).item())
+        n_total += param_instance.nelement()
+
+    return (100.0 * n_zero / n_total) if n_total != 0 else 0.0
 
 
 def download_pretrained_model(file_path: str, download_link: str) -> None:

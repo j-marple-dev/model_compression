@@ -10,8 +10,8 @@ import os
 from typing import Any, Dict
 
 
-class Runner(ABC):
-    """Abstract class used by all runner modules."""
+class Abstract(ABC):
+    """Abstract class used by trainers and prunners."""
 
     def __init__(self, config: Dict[str, Any], dir_prefix: str) -> None:
         """Initialize."""

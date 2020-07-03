@@ -8,8 +8,8 @@
 
 import argparse
 
-from src.runners import curr_time, initialize
-from src.runners.pruner import Pruner
+from src.pruning import curr_time, initialize
+from src.pruning.pruner import Pruner
 
 # arguments
 parser = argparse.ArgumentParser(description="Model pruner.")

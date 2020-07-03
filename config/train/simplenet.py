@@ -17,7 +17,7 @@ config = {
     "CRITERION": "CrossEntropy",
     "CRITERION_PARAMS": dict(num_classes=100),
     "BATCH_SIZE": 64,
-    "START_LR": 1e-4,
+    "START_LR": 1e-3,
     "LR": 0.1,
     "MOMENTUM": 0.9,
     "WEIGHT_DECAY": 1e-4,

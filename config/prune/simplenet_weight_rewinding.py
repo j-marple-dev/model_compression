@@ -7,12 +7,13 @@
 
 from config.train import simplenet
 
+train_config = simplenet.config
+train_config["WARMUP_EPOCHS"] = 5
 config = {
-    "TRAIN_CONFIG": simplenet.config,
-    "SEED": simplenet.config["SEED"],
-    "N_PRUNING_ITER": 3,
-    "EPOCHS": 5,
+    "TRAIN_CONFIG": train_config,
+    "EPOCHS": 100,
+    "N_PRUNING_ITER": 10,
     "PRUNE_AMOUNT": 0.2,
-    "STORE_PARAM_BEFORE": 0,
-    "PRUNE_START_FROM": 0,
+    "STORE_PARAM_BEFORE": 10,
+    "PRUNE_START_FROM": 10,
 }
