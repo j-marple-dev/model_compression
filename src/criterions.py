@@ -18,8 +18,8 @@ import src.utils as utils
 logger = utils.get_logger()
 
 
-class Loss(nn.Module):
-    """Base class for loss."""
+class Criterion(nn.Module):
+    """Base class for criterion."""
 
     def __init__(self, model: nn.Module, device: torch.device) -> None:
         """Initialize.
@@ -34,7 +34,7 @@ class Loss(nn.Module):
         self.device = device
 
 
-class HintonKLD(Loss):
+class HintonKLD(Criterion):
     """Hinton KLD Loss accepting soft labels.
 
     Reference:
@@ -139,7 +139,7 @@ class HintonKLD(Loss):
         return (1.0 - self.alpha) * ce + self.alpha * hinton_kld
 
 
-class CrossEntropy(Loss):
+class CrossEntropy(Criterion):
     """Crossentropy loss accepting soft labels.
 
     Attributes:
@@ -190,11 +190,11 @@ class CrossEntropy(Loss):
         return torch.mean(loss_total)
 
 
-def get_loss(
+def get_criterion(
     model: nn.Module,
     criterion_name: str,
     criterion_params: Dict[str, Any],
     device: torch.device,
 ) -> nn.Module:
-    """Create loss class."""
+    """Create criterion class."""
     return eval(criterion_name)(model, device, **criterion_params)

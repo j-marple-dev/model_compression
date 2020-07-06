@@ -16,11 +16,12 @@ import torch.optim as optim
 import wandb
 
 from src.augmentation.methods import CutMix
+from src.criterions import get_criterion
 from src.format import default_format, percent_format
-from src.losses import get_loss
 from src.lr_schedulers import WarmupCosineLR
 from src.models import utils as model_utils
 from src.pruning.abstract import Abstract
+from src.regularizers import get_regularizer
 import src.utils as utils
 
 logger = utils.get_logger()
@@ -70,12 +71,18 @@ class Trainer(Abstract):
         logger.info("Dataloader prepared")
 
         # define criterion and optimizer
-        self.criterion = get_loss(
+        self.criterion = get_criterion(
             model=self.model,
             criterion_name=self.config["CRITERION"],
             criterion_params=self.config["CRITERION_PARAMS"],
             device=self.device,
         )
+
+        self.regularizer = None
+        if "REGULARIZER" in self.config:
+            self.regularizer = get_regularizer(
+                self.config["REGULARIZER"], self.config["REGULARIZER_PARAMS"]
+            )
 
         self.optimizer = optim.SGD(
             self.model.parameters(),
@@ -212,6 +219,8 @@ class Trainer(Abstract):
 
             # forward + backward + optimize
             loss, outputs = self.criterion(images=images, labels=labels)
+            if self.regularizer:
+                loss += self.regularizer(self.model)
             self.count_correct_prediction(outputs, labels)
             loss.backward()
             self.optimizer.step()

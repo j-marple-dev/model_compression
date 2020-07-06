@@ -7,7 +7,8 @@
 
 from abc import ABC, abstractmethod
 import ast
-from typing import Any, Dict, Set
+import os
+from typing import Any, Dict, List, Set
 
 import src.utils as utils
 
@@ -108,50 +109,67 @@ class TrainConfigValidator(ConfigValidator):
             assert 0 < cutmix_config["prob"] <= 1
 
         self.check_criterion()
+        self.check_regularizer()
 
     def check_criterion(self) -> None:
-        """Check criterion config validity"""
+        """Check criterion config validity."""
         # get criterion class lists
-        with open("src/losses.py") as file:
-            node = ast.parse(file.read())
-        criterion_names = [n.name for n in node.body if isinstance(n, ast.ClassDef)]
-        # remove parent class(Loss)
-        criterion_names.remove("Loss")
+        criterion_names = get_class_names_in_files(
+            "src" + os.path.sep + "criterions.py"
+        )
+        criterion_names.remove("Criterion")
 
         # Check config criterion exists
         assert self.config["CRITERION"] in criterion_names
-        check_criterion = self.config["CRITERION"]
 
         # Run criterion config check
-        # Some criterion doesnt need any params
-        if hasattr(self, check_criterion):
-            """To run config check for criterion, make corresponding function name
-            (e.g. HintonKLD -> HintonKLD)"""
-            getattr(self, check_criterion)(self.config["CRITERION_PARAMS"])
+        params: Dict[str, Any] = self.config["CRITERION_PARAMS"]
 
-    def HintonKLD(self, config: Dict[str, Any]) -> None:
-        """Check HintonKLD Criterion params."""
-        assert "T" in config
-        assert config["T"] > 0.0
-        assert isinstance(config["T"], float)
+        if self.config["CRITERION"] == "HintonKLD":
+            assert "T" in params
+            assert params["T"] > 0.0
+            assert isinstance(params["T"], float)
 
-        assert "alpha" in config
-        assert 0.0 <= config["alpha"] <= 1.0
-        assert isinstance(config["alpha"], float)
+            assert "alpha" in params
+            assert 0.0 <= params["alpha"] <= 1.0
+            assert isinstance(params["alpha"], float)
 
-        # check additional params(teacher) exist
-        assert "teacher_model_name" in config
-        assert isinstance("teacher_model_name", str)
-        assert "teacher_model_params" in config
+            # check additional params(teacher) exist
+            assert "teacher_model_name" in params
+            assert isinstance("teacher_model_name", str)
+            assert "teacher_model_params" in params
 
-        # Hintonloss contains crossentropy
-        self.CrossEntropy(config["crossentropy_params"])
+            assert "crossentropy_params" in params
+            # Hintonloss contains crossentropy
+            ce_params = params["crossentropy_params"]
 
-    def CrossEntropy(self, config: Dict[str, Any]) -> None:
-        """Check CrossEntropy Criterion params."""
-        assert "num_classes" in config
-        assert config["num_classes"] > 0
-        assert isinstance(config["num_classes"], int)
+        elif self.config["CRITERION"] == "CrossEntropy":
+            ce_params = self.config["CRITERION_PARAMS"]
+
+        if ce_params:
+            assert "num_classes" in ce_params
+            assert ce_params["num_classes"] > 0
+            assert isinstance(ce_params["num_classes"], int)
+
+    def check_regularizer(self) -> None:
+        """Check regularizer config validity."""
+        if "REGULARIZER" not in self.config:
+            return None
+
+        regularizer_names = get_class_names_in_files(
+            "src" + os.path.sep + "regularizers.py"
+        )
+
+        # Check config regularizer exists
+        assert self.config["REGULARIZER"] in regularizer_names
+
+        # Run regularizer config check
+        params: Dict[str, Any] = self.config["REGULARIZER_PARAMS"]
+
+        if self.config["REGULARIZER"] == "BnWeight":
+            assert "coeff" in params
+            assert params["coeff"] > 0.0
+            assert isinstance(params["coeff"], float)
 
 
 class PruneConfigValidator(ConfigValidator):
@@ -203,3 +221,10 @@ class PruneConfigValidator(ConfigValidator):
 
         assert 0 <= self.config["PRUNE_START_FROM"] <= self.config["EPOCHS"]
         assert isinstance(self.config["PRUNE_START_FROM"], int)
+
+
+def get_class_names_in_files(path: str) -> List[str]:
+    """Read all class names in file."""
+    with open(path) as file:
+        module = ast.parse(file.read())
+        return [node.name for node in module.body if isinstance(node, ast.ClassDef)]
