@@ -24,7 +24,7 @@ checkpt_path = os.path.join("save", "checkpoint")
 
 
 def initialize(
-    config_path: str, resume: str = "", gpu_id: int = 0
+    config_path: str, resume: str = "", gpu_id: int = 0, is_pruning: bool = False
 ) -> Tuple[Dict[str, Any], str, torch.device]:
     """Intialize."""
     # setup device
@@ -55,10 +55,10 @@ def initialize(
     utils.set_logger(filename=os.path.join(dir_prefix, f"{config_name}.log"))
 
     # config validation check
-    if "train" in config_path:
-        TrainConfigValidator(config).check()
-    elif "prune" in config_path:
+    if is_pruning:
         PruneConfigValidator(config).check()
+    else:
+        TrainConfigValidator(config).check()
 
     # set random seed
     utils.set_random_seed(config["SEED"])

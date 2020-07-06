@@ -21,16 +21,13 @@ logger = utils.get_logger()
 class Criterion(nn.Module):
     """Base class for criterion."""
 
-    def __init__(self, model: nn.Module, device: torch.device) -> None:
+    def __init__(self, device: torch.device) -> None:
         """Initialize.
 
         Args:
-            model (nn.Module): model to be trained.
-            config (Dict[str, Any]): config containing model.
-            device (torch.device): device type(GPU, CPU).
+            device (torch.device): device type(GPU, CPU)
         """
         super().__init__()
-        self.model = model
         self.device = device
 
 
@@ -49,7 +46,6 @@ class HintonKLD(Criterion):
 
     def __init__(
         self,
-        model: nn.Module,
         device: torch.device,
         T: float,
         alpha: float,
@@ -58,8 +54,8 @@ class HintonKLD(Criterion):
         crossentropy_params: Dict[str, Any],
     ) -> None:
         """Initialize cross entropy loss."""
-        super().__init__(model, device)
-        self.cross_entropy = CrossEntropy(model, device, **crossentropy_params)
+        super().__init__(device)
+        self.cross_entropy = CrossEntropy(device, **crossentropy_params)
         self.T = T
         self.alpha = alpha
         self.teacher = self._create_teacher(teacher_model_name, teacher_model_params)
@@ -96,7 +92,7 @@ class HintonKLD(Criterion):
         return teacher
 
     def forward(
-        self, images: torch.Tensor, labels: torch.Tensor
+        self, model: nn.Module, images: torch.Tensor, labels: torch.Tensor
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """Forward model, calculate loss.
 
@@ -110,7 +106,7 @@ class HintonKLD(Criterion):
         """
         with torch.no_grad():
             logit_t = self.teacher(images)
-        logit_s = self.model(images)
+        logit_s = model(images)
 
         return (
             self.calculate_loss(logit_s=logit_s, logit_t=logit_t, labels=labels),
@@ -147,16 +143,14 @@ class CrossEntropy(Criterion):
         num_classes (int): number of classes in dataset, to get onehot labels
     """
 
-    def __init__(
-        self, model: nn.Module, device: torch.device, num_classes: int
-    ) -> None:
+    def __init__(self, device: torch.device, num_classes: int) -> None:
         """Initialize cross entropy loss."""
-        super().__init__(model, device)
+        super().__init__(device)
         self.log_softmax = nn.LogSoftmax(dim=1)
         self.num_classes = num_classes
 
     def forward(
-        self, images: torch.Tensor, labels: torch.Tensor
+        self, model: nn.Module, images: torch.Tensor, labels: torch.Tensor
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """Forward model, calculate loss.
 
@@ -167,7 +161,7 @@ class CrossEntropy(Criterion):
             loss (torch.Tensor): calculated loss.
             logit (Dict[str, torch.Tensor]): model output.
         """
-        logit = self.model(images)
+        logit = model(images)
         return self.calculate_loss(logit=logit, labels=labels), {"model": logit}
 
     def calculate_loss(self, logit: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
@@ -191,10 +185,7 @@ class CrossEntropy(Criterion):
 
 
 def get_criterion(
-    model: nn.Module,
-    criterion_name: str,
-    criterion_params: Dict[str, Any],
-    device: torch.device,
+    criterion_name: str, criterion_params: Dict[str, Any], device: torch.device,
 ) -> nn.Module:
-    """Create criterion class."""
-    return eval(criterion_name)(model, device, **criterion_params)
+    """Create loss class."""
+    return eval(criterion_name)(device, **criterion_params)

@@ -23,7 +23,7 @@ parser.add_argument(
 parser.add_argument(
     "--config", type=str, default="config/train/simplenet.py", help="Configuration path"
 )
-parser.set_defaults(log=False)
+parser.set_defaults(wlog=False)
 args = parser.parse_args()
 
 # initialize

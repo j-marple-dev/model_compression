@@ -18,11 +18,9 @@ config_override = {
         crossentropy_params=dict(num_classes=100),
     ),
     "BATCH_SIZE": 16,
-    "START_LR": 1e-4,
     "LR": 0.1,
     "MOMENTUM": 0.9,
     "WEIGHT_DECAY": 1e-4,
-    "WARMUP_EPOCHS": 3,
     "EPOCHS": 5,
 }
 config.update(config_override)

@@ -30,7 +30,9 @@ parser.set_defaults(log=False)
 args = parser.parse_args()
 
 # initialize
-config, dir_prefix, device = initialize(args.config, args.resume, args.gpu)
+config, dir_prefix, device = initialize(
+    args.config, args.resume, args.gpu, is_pruning=True
+)
 
 # run pruning
 wandb_name = args.resume if args.resume else curr_time

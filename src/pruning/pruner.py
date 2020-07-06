@@ -136,20 +136,11 @@ class Pruner(Abstract):
             self.init_params_path = init_params_path
 
         # check the pruning iteration
-        last_iter = -1
-        latest_file_path = self._fetch_latest_checkpt()
-        if latest_file_path and os.path.exists(latest_file_path):
-            logger.info(f"Resume pruning from {self.dir_prefix}")
-            _, checkpt_dir, _ = latest_file_path.rsplit(os.path.sep, 2)
-            # fetch the last iter from the filename
-            if checkpt_dir != self.pretrain_dir_name:
-                last_iter = int(checkpt_dir.split("_", 1)[0])
+        last_iter = self._check_pruning_iter_from_filepath()
 
         # model should contain weight_mask
         if last_iter > -1:
-            prune.global_unstructured(
-                self.params_to_prune, pruning_method=prune.L1Unstructured, amount=0.0,
-            )
+            model_utils.dummy_pruning(self.model)
 
         return last_iter
 
@@ -196,3 +187,18 @@ class Pruner(Abstract):
         self.init_params_path = os.path.join(
             self.dir_prefix, f"{self.init_params_name}.{self.fileext}"
         )
+
+    def _check_pruning_iter_from_filepath(self) -> int:
+        """Check the last pruning iteration from filepath."""
+        last_iter = -1
+        latest_file_path = self._fetch_latest_checkpt()
+
+        if latest_file_path and os.path.exists(latest_file_path):
+            logger.info(f"Resume pruning from {self.dir_prefix}")
+            _, checkpt_dir, _ = latest_file_path.rsplit(os.path.sep, 2)
+
+            # fetch the last iter from the filename
+            if checkpt_dir != self.pretrain_dir_name:
+                last_iter = int(checkpt_dir.split("_", 1)[0])
+
+        return last_iter

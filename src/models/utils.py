@@ -15,6 +15,7 @@ import gdown
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.utils.prune as prune
 import wandb
 import yaml
 
@@ -73,6 +74,40 @@ def get_model_tensor_datatype(model: nn.Module) -> List[Tuple[str, torch.dtype]]
         for name, tensor in model.state_dict().items()
         if hasattr(tensor, "dtype")
     ]
+
+
+def get_model_size_mb(model: nn.Module) -> float:
+    """Get the model file size."""
+    torch.save(model.state_dict(), "temp.p")
+    size = os.path.getsize("temp.p") / 1e6
+    os.remove("temp.p")
+    return size
+
+
+def dummy_pruning(model: nn.Module) -> Tuple[Tuple[nn.Module, str], ...]:
+    """Conduct fake pruning."""
+    params_to_prune = get_weight_tuple(model, bias=False)
+    prune.global_unstructured(
+        params_to_prune, pruning_method=prune.L1Unstructured, amount=0.0,
+    )
+    return params_to_prune
+
+
+def remove_pruning_reparameterization(
+    params_to_prune: Tuple[Tuple[nn.Module, str], ...]
+) -> None:
+    """Combine (weight_orig, weight_mask) and reduce the model size."""
+    for module, weight_type in params_to_prune:
+        prune.remove(module, weight_type)
+
+
+def get_masks(model: nn.Module) -> Dict[str, torch.Tensor]:
+    """Get masks from the model."""
+    mask = dict()
+    for k, v in model.state_dict().items():
+        if "mask" in k:
+            mask[k] = v.detach().cpu().clone()
+    return mask
 
 
 def get_weight_tuple(

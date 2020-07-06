@@ -4,7 +4,7 @@
     file_name: model_best.pth.tar
     link: https://drive.google.com/u/0/uc?export=download&confirm=ilUf&id=1Mwr6pmdWN7r4wgmE1nYqEUDyuwLt5ce5
 # simplenet // num_classes=100
-'0b6467925097c132ffce953ea6ddf744f28b167beebb293c48bb5a3c': 
+'e3a038efe3aa38ac295c43454bb993040f5087617c44ee6116142b28': 
     dir_name: simplenet_numclasses_100
     file_name: model_best.pth.tar
     link: https://drive.google.com/u/0/uc?id=12rKUVZNDucVfxi4G3fLJwahF2dxKDOfZ&export=download

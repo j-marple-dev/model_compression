@@ -19,12 +19,12 @@ config_override = {
         ),
         crossentropy_params=dict(num_classes=100),
     ),
+    "LR_SCHEDULER": "WarmupCosineLR",
+    "LR_SCHEDULER_PARAMS": dict(warmup_epochs=3, start_lr=1e-4),
     "BATCH_SIZE": 32,
-    "START_LR": 1e-4,
     "LR": 0.1,
     "MOMENTUM": 0.9,
     "WEIGHT_DECAY": 1e-4,
-    "WARMUP_EPOCHS": 3,
     "EPOCHS": 5,
 }
 config.update(config_override)

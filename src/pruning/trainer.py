@@ -11,6 +11,7 @@ from typing import Any, Callable, DefaultDict, Dict, List, Tuple
 
 from progressbar import progressbar
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import wandb
@@ -18,7 +19,7 @@ import wandb
 from src.augmentation.methods import CutMix
 from src.criterions import get_criterion
 from src.format import default_format, percent_format
-from src.lr_schedulers import WarmupCosineLR
+from src.lr_schedulers import get_lr_scheduler
 from src.models import utils as model_utils
 from src.pruning.abstract import Abstract
 from src.regularizers import get_regularizer
@@ -38,6 +39,7 @@ class Trainer(Abstract):
         wandb_log: bool,
         wandb_init_params: Dict[str, Any],
         device: torch.device,
+        test_preprocess_hook: Callable[[nn.Module], nn.Module] = None,
     ) -> None:
         """Initialize."""
         super(Trainer, self).__init__(config, dir_prefix)
@@ -58,7 +60,7 @@ class Trainer(Abstract):
 
         # transform the training dataset for CutMix augmentation
         if "CUTMIX" in self.config:
-            trainset = CutMix(
+            self.trainset = CutMix(
                 trainset,
                 self.config["MODEL_PARAMS"]["num_classes"],
                 **self.config["CUTMIX"],
@@ -72,7 +74,6 @@ class Trainer(Abstract):
 
         # define criterion and optimizer
         self.criterion = get_criterion(
-            model=self.model,
             criterion_name=self.config["CRITERION"],
             criterion_params=self.config["CRITERION_PARAMS"],
             device=self.device,
@@ -92,12 +93,15 @@ class Trainer(Abstract):
         )
 
         # learning rate scheduler
-        self.lr_scheduler = WarmupCosineLR(
-            self.config["WARMUP_EPOCHS"],
-            self.config["EPOCHS"],
-            self.config["START_LR"],
-            self.config["LR"],
+        self.lr_scheduler = get_lr_scheduler(
+            self.config["LR_SCHEDULER"], self.config["LR_SCHEDULER_PARAMS"],
         )
+
+        # test preprocessor hook
+        if test_preprocess_hook:
+            self.test_preprocess_hook = test_preprocess_hook
+        else:
+            self.test_preprocess_hook = lambda x: x
 
         # create logger
         if wandb_log:
@@ -120,7 +124,6 @@ class Trainer(Abstract):
         last_epoch = -1
         latest_file_path = self._fetch_latest_checkpt()
         if latest_file_path and os.path.exists(latest_file_path):
-            logger.info(f"Resume training from {self.dir_prefix}")
             self.load_params(latest_file_path)
             _, self.checkpt_dir, filename = latest_file_path.rsplit(os.path.sep, 2)
             # fetch the last epoch from the filename
@@ -134,7 +137,6 @@ class Trainer(Abstract):
         if resume_info_path:
             start_epoch = self.resume()
 
-        # reset best_acc
         for epoch in range(start_epoch, self.config["EPOCHS"]):
             self.run_one_epoch(epoch)
 
@@ -149,8 +151,10 @@ class Trainer(Abstract):
         # train
         train_loss, train_acc = self.train_one_epoch()
 
+        model = self.test_preprocess_hook(self.model)
+
         # test
-        test_loss, test_acc = self.test_one_epoch()
+        test_loss, test_acc = self.test_one_epoch(model)
 
         # save model
         if test_acc["model_acc"] > self.best_acc:
@@ -218,7 +222,7 @@ class Trainer(Abstract):
             self.optimizer.zero_grad()
 
             # forward + backward + optimize
-            loss, outputs = self.criterion(images=images, labels=labels)
+            loss, outputs = self.criterion(self.model, images=images, labels=labels)
             if self.regularizer:
                 loss += self.regularizer(self.model)
             self.count_correct_prediction(outputs, labels)
@@ -231,16 +235,19 @@ class Trainer(Abstract):
         acc = self.get_epoch_accuracy()
         return avg_loss, acc
 
-    def test_one_epoch(self) -> Tuple[float, Dict[str, float]]:
-        """Test one epoch."""
+    @torch.no_grad()
+    def test_one_epoch(self, model: nn.Module = None) -> Tuple[float, Dict[str, float]]:
+        """Test the input model."""
+        if model is None:
+            model = self.model
+
         losses = []
-        self.model.eval()
+        model.eval()
         for data in progressbar(self.testloader, prefix="[Test]\t"):
             images, labels = data[0].to(self.device), data[1].to(self.device)
 
             # forward + backward + optimize
-            with torch.no_grad():
-                loss, outputs = self.criterion(images=images, labels=labels)
+            loss, outputs = self.criterion(model, images=images, labels=labels)
 
             self.count_correct_prediction(outputs, labels)
 

@@ -12,6 +12,7 @@ from runpy import run_path
 import shutil
 from typing import Any, Dict, Tuple
 
+from config.config_validator import QuantConfigValidator
 import src.utils as utils
 
 # create directories
@@ -38,9 +39,8 @@ def initialize(config_path: str) -> Tuple[Dict[str, Any], str]:
     config_name = os.path.splitext(config_name)[0]
     utils.set_logger(filename=os.path.join(dir_prefix, f"{config_name}.log"))
 
-    # hold training config if it is a pruning config
-    if "TRAIN_CONFIG" in config:
-        config = config["TRAIN_CONFIG"]
+    # config validation
+    QuantConfigValidator(config).check()
 
     # set random seed
     utils.set_random_seed(config["SEED"])
