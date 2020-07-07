@@ -5,12 +5,12 @@
 - Email: jwpark@jmarple.ai
 """
 
-from config.train import simplenet
+from config.train import densenet_small
 
-config = simplenet.config
+config = densenet_small.config
 config.update(
     {
-        "MODEL_NAME": "quant_simplenet",
+        "MODEL_NAME": "quant_densenet",
         "LR_SCHEDULER_PARAMS": dict(warmup_epochs=0, start_lr=1e-4),
         "LR": 1e-4,
         "EPOCHS": 5,

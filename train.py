@@ -8,8 +8,8 @@
 
 import argparse
 
-from src.pruning import curr_time, initialize
-from src.pruning.trainer import Trainer
+from src.runners import curr_time, initialize
+from src.runners.trainer import Trainer
 
 # arguments
 parser = argparse.ArgumentParser(description="Model trainer.")
@@ -27,7 +27,7 @@ parser.set_defaults(wlog=False)
 args = parser.parse_args()
 
 # initialize
-config, dir_prefix, device = initialize(args.config, args.resume, args.gpu)
+config, dir_prefix, device = initialize("train", args.config, args.resume, args.gpu)
 
 # run training
 wandb_name = args.resume if args.resume else curr_time

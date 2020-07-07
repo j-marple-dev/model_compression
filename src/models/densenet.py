@@ -9,8 +9,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-__all__ = ["get_model"]
+from torch.quantization import fuse_modules
 
 
 class Bottleneck(nn.Module):
@@ -23,19 +22,20 @@ class Bottleneck(nn.Module):
         super(Bottleneck, self).__init__()
         planes = expansion * growthRate
         self.bn1 = nn.BatchNorm2d(inplanes)
+        self.relu1 = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
+        self.relu2 = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(planes, growthRate, kernel_size=3, padding=1, bias=False)
-        self.relu = nn.ReLU(inplace=True)
         self.dropRate = dropRate
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward."""
         out = self.bn1(x)
-        out = self.relu(out)
+        out = self.relu1(out)
         out = self.conv1(out)
         out = self.bn2(out)
-        out = self.relu(out)
+        out = self.relu2(out)
         out = self.conv2(out)
         if self.dropRate > 0:
             out = F.dropout(out, p=self.dropRate, training=self.training)
@@ -43,6 +43,9 @@ class Bottleneck(nn.Module):
         out = torch.cat((x, out), 1)
 
         return out
+
+    def fuse_model(self):
+        fuse_modules(self, ["conv1", "bn2", "relu2"], inplace=True)
 
 
 class BasicBlock(nn.Module):

@@ -14,14 +14,14 @@ import torch.nn.utils.prune as prune
 
 from src.format import percent_format
 from src.models import utils as model_utils
-from src.pruning.abstract import Abstract
-from src.pruning.trainer import Trainer
+from src.runners.runner import Runner
+from src.runners.trainer import Trainer
 from src.utils import get_logger
 
 logger = get_logger()
 
 
-class Pruner(Abstract):
+class Pruner(Runner):
     """Pruner for models."""
 
     def __init__(

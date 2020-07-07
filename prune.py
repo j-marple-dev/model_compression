@@ -8,8 +8,8 @@
 
 import argparse
 
-from src.pruning import curr_time, initialize
-from src.pruning.pruner import Pruner
+from src.runners import curr_time, initialize
+from src.runners.pruner import Pruner
 
 # arguments
 parser = argparse.ArgumentParser(description="Model pruner.")
@@ -30,9 +30,7 @@ parser.set_defaults(log=False)
 args = parser.parse_args()
 
 # initialize
-config, dir_prefix, device = initialize(
-    args.config, args.resume, args.gpu, is_pruning=True
-)
+config, dir_prefix, device = initialize("prune", args.config, args.resume, args.gpu)
 
 # run pruning
 wandb_name = args.resume if args.resume else curr_time

@@ -173,11 +173,13 @@ class TrainConfigValidator(ConfigValidator):
             self.config["LR_SCHEDULER"] = "Identity"
             self.config["LR_SCHEDULER_PARAMS"] = dict()
 
-        assert self.config["LR_SCHEDULER"] in {
-            "Identity",
-            "MultiStepLR",
-            "WarmupCosineLR",
-        }
+        lr_scheduler_names = get_class_names_in_files(
+            "src" + os.path.sep + "lr_schedulers.py"
+        )
+        lr_scheduler_names.remove("LrScheduler")
+
+        # Check config regularizer exists
+        assert self.config["LR_SCHEDULER"] in lr_scheduler_names
         assert "LR_SCHEDULER_PARAMS" in self.config
         assert isinstance(self.config["LR_SCHEDULER_PARAMS"], dict)
 
@@ -270,40 +272,17 @@ class PruneConfigValidator(ConfigValidator):
         assert isinstance(self.config["PRUNE_START_FROM"], int)
 
 
-class QuantConfigValidator(ConfigValidator):
+class QuantizeConfigValidator(TrainConfigValidator):
     """Config validation for quantization config."""
 
     def __init__(self, config: Dict[str, Any], log: bool = True) -> None:
         """Initialize."""
         super().__init__(config, log)
 
-        self.necessary_config_names = {
-            "TRAIN_CONFIG",
-            "EPOCHS",
-            "QUANT_BACKEND",
-        }
-
     def check(self) -> None:
         """Check configs are specified correctly."""
-        # check existence
-        self.check_key_exists()
-
         # validate training config
-        TrainConfigValidator(self.config["TRAIN_CONFIG"], log=False).check()
-
-        # if SEED is not specified, set it same as training config's SEED
-        if "SEED" not in self.config:
-            self.config["SEED"] = self.config["TRAIN_CONFIG"]["SEED"]
-
-        # if EPOCHS is not specified, set it same as training config's EPOCHS
-        if "EPOCHS" not in self.config:
-            self.config["EPOCHS"] = self.config["TRAIN_CONFIG"]["EPOCHS"]
-        # training config should contain the same epoch number in pruning config
-        else:
-            self.config["TRAIN_CONFIG"]["EPOCHS"] = self.config["EPOCHS"]
-
-        assert self.config["QUANT_BACKEND"] in {"fbgemm", "qnnpack"}
-        assert isinstance(self.config["QUANT_BACKEND"], str)
+        super().check()
 
 
 def get_class_names_in_files(path: str) -> List[str]:

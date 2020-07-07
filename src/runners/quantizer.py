@@ -15,7 +15,8 @@ import torch.nn as nn
 import torch.quantization
 
 from src.models import utils as model_utils
-from src.pruning.trainer import Trainer
+from src.runners.runner import Runner
+from src.runners.trainer import Trainer
 import src.utils as utils
 
 logger = utils.get_logger()
@@ -31,7 +32,7 @@ def print_datatypes(model: nn.Module, model_name: str, sep: str = "\n") -> None:
 def estimate_acc_size(model: nn.Module, trainer: Trainer) -> None:
     """Estimate the model's performance."""
     s = time.time()
-    _, acc = trainer.test_one_epoch(model)
+    _, acc = trainer.test_one_epoch_model(model)
     inf_time = (time.time() - s) / len(trainer.testloader.dataset)
     size = model_utils.get_model_size_mb(model)
     logger.info(
@@ -41,7 +42,7 @@ def estimate_acc_size(model: nn.Module, trainer: Trainer) -> None:
     )
 
 
-class Quantizer:
+class Quantizer(Runner):
     """Quantizer for trained models."""
 
     def __init__(
@@ -49,35 +50,37 @@ class Quantizer:
         config: Dict[str, Any],
         checkpoint_path: str,
         dir_prefix: str,
+        backend: str,
         wandb_log: bool,
         wandb_init_params: Dict[str, Any],
     ) -> None:
         """Initialize."""
-        self.config = config
-        self.dir_prefix = dir_prefix
-        self.best_acc = 0.0
-        self.params_to_prune = None
+        super(Quantizer, self).__init__(config, dir_prefix)
+        self.mask: Dict[str, torch.Tensor] = dict()
+        self.params_pruned = None
+        self.backend = backend
 
         # create a trainer
-        def test_preprocess_hook(_: nn.Module) -> nn.Module:
-            return self._quantize()
-
         self.trainer = Trainer(
-            config=self.config["TRAIN_CONFIG"],
+            config=self.config,
             dir_prefix=dir_prefix,
             checkpt_dir="qat",
             wandb_log=wandb_log,
             wandb_init_params=wandb_init_params,
             device="cpu",
-            test_preprocess_hook=test_preprocess_hook,
+            test_preprocess_hook=self._quantize,
         )
 
         # initialize the model
         logger.info("Initialize the model")
         self.model = self.trainer.model
-        self.mask = self._init_model(checkpoint_path)
+        self._init_model(checkpoint_path)
 
-    def run(self) -> None:
+    def resume(self) -> int:
+        """Setting to resume quantization."""
+        pass
+
+    def run(self, resume_info_path: str = "") -> None:
         """Run quantization."""
         logger.info("Estimate the original model")
         print_datatypes(self.model, "original model")
@@ -88,7 +91,7 @@ class Quantizer:
         print_datatypes(self.model, "Fused model")
 
         # quantization-aware training
-        self.trainer.run()
+        self.trainer.run(resume_info_path)
         self.model.apply(torch.quantization.disable_observer)
         self.model.apply(torch.nn.intrinsic.qat.freeze_bn_stats)
 
@@ -96,7 +99,7 @@ class Quantizer:
         self._load_best_model()
 
         # quantize the model
-        quantized_model = self._quantize()
+        quantized_model = self._quantize(self.model)
         print_datatypes(quantized_model, "Quantized model")
         logger.info("Estimate the quantized model")
         estimate_acc_size(quantized_model, self.trainer)
@@ -114,7 +117,7 @@ class Quantizer:
             scripted_model, os.path.join(self.dir_prefix, "scripted_model.pth.zip")
         )
 
-    def _init_model(self, checkpoint_path: str) -> Dict[str, torch.Tensor]:
+    def _init_model(self, checkpoint_path: str) -> None:
         """Create a model instance and load weights."""
         # load weights
         logger.info(f"Load weights from the checkpoint {checkpoint_path}")
@@ -129,29 +132,26 @@ class Quantizer:
 
         if is_pruned:
             logger.info("Dummy prunning to load pruned weights")
-            params_to_prune = model_utils.dummy_pruning(self.model)
+            self.params_pruned = model_utils.dummy_pruning(self.model)
 
         # initialize weights
         logger.info("Initialize weights")
-        model_utils.initialize_params(self.model, state_dict)
-
-        # store masks and remove pruning reparameterization
-        mask = model_utils.get_masks(self.model)
+        assert hasattr(self.model, "classifier")
+        model_utils.initialize_params(self.model.classifier, state_dict)
 
         if is_pruned:
-            logger.info("Remove prunning reparameterization for prepare_qat")
-            model_utils.remove_pruning_reparameterization(params_to_prune)
-
-        return mask
+            logger.info(
+                "Get masks and remove prunning reparameterization for prepare_qat"
+            )
+            self.mask = model_utils.get_masks(self.model)
+            model_utils.remove_pruning_reparameterization(self.params_pruned)
 
     def _prepare(self) -> None:
         """Quantize the model."""
         self.model.fuse_model()
 
         # configuration
-        self.model.qconfig = torch.quantization.get_default_qat_qconfig(
-            self.config["QUANT_BACKEND"]
-        )
+        self.model.qconfig = torch.quantization.get_default_qat_qconfig(self.backend)
         torch.quantization.prepare_qat(self.model, inplace=True)
 
         # load masks
@@ -162,7 +162,7 @@ class Quantizer:
         if not self.mask:
             return
 
-        self.params_to_prune = model_utils.dummy_pruning(self.model)
+        self.params_pruned = model_utils.dummy_pruning(self.model)
         for name, _ in self.model.named_buffers():
             if name in self.mask:
                 module_name, mask_name = name.rsplit(".", 1)
@@ -173,13 +173,13 @@ class Quantizer:
         """Load the trained model with the best accuracy."""
         self.trainer.resume()
 
-    def _quantize(self) -> nn.Module:
+    def _quantize(self, model: nn.Module) -> nn.Module:
         """Quantize the trained model."""
         if self.mask:
-            model_utils.remove_pruning_reparameterization(self.params_to_prune)
+            model_utils.remove_pruning_reparameterization(self.params_pruned)
 
         # check the accuracy after each epoch
-        quantized_model = torch.quantization.convert(self.model.eval(), inplace=False)
+        quantized_model = torch.quantization.convert(model.eval(), inplace=False)
         quantized_model.eval()
 
         # set masks again

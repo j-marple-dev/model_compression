@@ -21,14 +21,14 @@ from src.criterions import get_criterion
 from src.format import default_format, percent_format
 from src.lr_schedulers import get_lr_scheduler
 from src.models import utils as model_utils
-from src.pruning.abstract import Abstract
 from src.regularizers import get_regularizer
+from src.runners.runner import Runner
 import src.utils as utils
 
 logger = utils.get_logger()
 
 
-class Trainer(Abstract):
+class Trainer(Runner):
     """Trainer for models."""
 
     def __init__(
@@ -46,6 +46,7 @@ class Trainer(Abstract):
         self.device = device
         self.wandb_log = wandb_log
         self.reset(checkpt_dir)
+        self.test_preprocess_hook = test_preprocess_hook
 
         # create a model
         model_name = self.config["MODEL_NAME"]
@@ -97,12 +98,6 @@ class Trainer(Abstract):
             self.config["LR_SCHEDULER"], self.config["LR_SCHEDULER_PARAMS"],
         )
 
-        # test preprocessor hook
-        if test_preprocess_hook:
-            self.test_preprocess_hook = test_preprocess_hook
-        else:
-            self.test_preprocess_hook = lambda x: x
-
         # create logger
         if wandb_log:
             wandb.init(**wandb_init_params)
@@ -151,10 +146,8 @@ class Trainer(Abstract):
         # train
         train_loss, train_acc = self.train_one_epoch()
 
-        model = self.test_preprocess_hook(self.model)
-
         # test
-        test_loss, test_acc = self.test_one_epoch(model)
+        test_loss, test_acc = self.test_one_epoch()
 
         # save model
         if test_acc["model_acc"] > self.best_acc:
@@ -235,12 +228,16 @@ class Trainer(Abstract):
         acc = self.get_epoch_accuracy()
         return avg_loss, acc
 
-    @torch.no_grad()
-    def test_one_epoch(self, model: nn.Module = None) -> Tuple[float, Dict[str, float]]:
-        """Test the input model."""
-        if model is None:
-            model = self.model
+    def test_one_epoch(self) -> Tuple[float, Dict[str, float]]:
+        """Test one epoch."""
+        model = self.model
+        if self.test_preprocess_hook:
+            model = self.test_preprocess_hook(self.model)
+        return self.test_one_epoch_model(model)
 
+    @torch.no_grad()
+    def test_one_epoch_model(self, model: nn.Module) -> Tuple[float, Dict[str, float]]:
+        """Test the input model."""
         losses = []
         model.eval()
         for data in progressbar(self.testloader, prefix="[Test]\t"):
@@ -292,4 +289,5 @@ class Trainer(Abstract):
         model_utils.initialize_params(
             self.optimizer, checkpt["optimizer"], with_mask=False
         )
+        self.best_acc = checkpt["test_acc"]
         logger.info(f"Loaded parameters from {model_path}")

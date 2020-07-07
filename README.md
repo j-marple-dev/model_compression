@@ -83,3 +83,21 @@ optional arguments:
   --wlog           Turns on wandb logging
   --config CONFIG  Configuration path
 ```
+
+#### Run quantization
+```bash
+$ python quantize.py --config config_path -checkpoint checkpoint_path
+$ python quantize.py --help
+usage: quantize.py [-h] [--resume RESUME] [--wlog] [--config CONFIG]
+                   [--checkpoint CHECKPOINT]
+
+Model quantizer.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --resume RESUME       Input log directory name to resume
+  --wlog                Turns on wandb logging
+  --config CONFIG       Configuration path
+  --checkpoint CHECKPOINT
+                        Input checkpoint path to quantize
+```
