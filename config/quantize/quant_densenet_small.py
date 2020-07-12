@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Configurations for quantization for simplenet.
+"""Configurations for quantization for densenet_small.
 
 - Author: Curt-Park
 - Email: jwpark@jmarple.ai
 """
 
-from config.train import densenet_small
+from config.train import fixed_densenet_small
 
-config = densenet_small.config
+config = fixed_densenet_small.config
 config.update(
     {
         "MODEL_NAME": "quant_densenet",

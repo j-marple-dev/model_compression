@@ -97,6 +97,7 @@ optional arguments:
   -h, --help            show this help message and exit
   --resume RESUME       Input log directory name to resume
   --wlog                Turns on wandb logging
+  --static              Post-training static quantization
   --config CONFIG       Configuration path
   --checkpoint CHECKPOINT
                         Input checkpoint path to quantize

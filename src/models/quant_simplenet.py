@@ -12,20 +12,19 @@ from torch.quantization import DeQuantStub, QuantStub
 from src.models.simplenet import SimpleNet
 
 
-class QuantSimpleNet(nn.Module):
-    """QuantSimpleNet architecture."""
+class QuantizableSimpleNet(SimpleNet):
+    """Quantizable SimpleNet architecture."""
 
     def __init__(self, num_classes: int) -> None:
         """Initialize."""
-        super(QuantSimpleNet, self).__init__()
+        super(QuantizableSimpleNet, self).__init__(num_classes)
         self.quant = QuantStub()
-        self.classifier = SimpleNet(num_classes)
         self.dequant = DeQuantStub()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward."""
         x = self.quant(x)
-        x = self.classifier(x)
+        x = self._forward_impl(x)
         output = self.dequant(x)
         return output
 
@@ -39,15 +38,10 @@ class QuantSimpleNet(nn.Module):
         References:
             https://pytorch.org/docs/stable/quantization.html#torch-nn-intrinsic
         """
-        for i in range(4):
-            modules_to_fuse = [
-                f"classifier.conv{i+1}",
-                f"classifier.bn{i+1}",
-                f"classifier.relu{i+1}",
-            ]
-            torch.quantization.fuse_modules(self, modules_to_fuse, inplace=True)
+        modules_to_fuse = [[f"conv{i+1}", f"bn{i+1}", f"relu{i+1}"] for i in range(4)]
+        torch.quantization.fuse_modules(self, modules_to_fuse, inplace=True)
 
 
 def get_model(**kwargs: bool) -> nn.Module:
     """Constructs a Simple model for quantization."""
-    return QuantSimpleNet(**kwargs)
+    return QuantizableSimpleNet(**kwargs)

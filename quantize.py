@@ -22,11 +22,18 @@ parser.add_argument(
     "--wlog", dest="wlog", action="store_true", help="Turns on wandb logging"
 )
 parser.add_argument(
+    "--static",
+    dest="static",
+    action="store_true",
+    help="Post-training static quantization",
+)
+parser.add_argument(
     "--backend", type=str, default="fbgemm", help="pytorch quantization backend"
 )
 parser.add_argument("--config", type=str, help="Configuration path")
 parser.add_argument("--checkpoint", type=str, help="input checkpoint path to quantize")
 parser.set_defaults(wlog=False)
+parser.set_defaults(static=False)
 args = parser.parse_args()
 
 # get config and directory path prefix for logging
@@ -48,6 +55,7 @@ quantizer = Quantizer(
     config=config,
     checkpoint_path=checkpoint_path,
     dir_prefix=dir_prefix,
+    static=args.static,
     backend=args.backend,
     wandb_log=args.wlog,
     wandb_init_params=wandb_init_params,

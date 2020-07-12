@@ -50,6 +50,7 @@ class Quantizer(Runner):
         config: Dict[str, Any],
         checkpoint_path: str,
         dir_prefix: str,
+        static: bool,
         backend: str,
         wandb_log: bool,
         wandb_init_params: Dict[str, Any],
@@ -58,6 +59,7 @@ class Quantizer(Runner):
         super(Quantizer, self).__init__(config, dir_prefix)
         self.mask: Dict[str, torch.Tensor] = dict()
         self.params_pruned = None
+        self.static = static
         self.backend = backend
 
         # create a trainer
@@ -82,26 +84,31 @@ class Quantizer(Runner):
 
     def run(self, resume_info_path: str = "") -> None:
         """Run quantization."""
-        logger.info("Estimate the original model")
-        print_datatypes(self.model, "original model")
+        logger.info("Estimate the original model's size and accuracy")
+        # print_datatypes(self.model, "original model")
         estimate_acc_size(self.model, self.trainer)
 
         # fuse the model
         self._prepare()
-        print_datatypes(self.model, "Fused model")
+        # print_datatypes(self.model, "Fused model")
 
+        # post training static quantization
+        if self.static:
+            logger.info("Post Training Static Quantization: Run calibration")
+            self.trainer.test_one_epoch_model(self.model)
         # quantization-aware training
-        self.trainer.run(resume_info_path)
-        self.model.apply(torch.quantization.disable_observer)
-        self.model.apply(torch.nn.intrinsic.qat.freeze_bn_stats)
-
-        # load the best model
-        self._load_best_model()
+        else:
+            logger.info("Quantization Aware Training: Run training")
+            self.trainer.run(resume_info_path)
+            self.model.apply(torch.quantization.disable_observer)
+            self.model.apply(torch.nn.intrinsic.qat.freeze_bn_stats)
+            # load the best model
+            self._load_best_model()
 
         # quantize the model
         quantized_model = self._quantize(self.model)
-        print_datatypes(quantized_model, "Quantized model")
-        logger.info("Estimate the quantized model")
+        # print_datatypes(quantized_model, "Quantized model")
+        logger.info("Estimate the quantized model's size and accuracy")
         estimate_acc_size(quantized_model, self.trainer)
         torch.save(
             quantized_model.state_dict(),
@@ -110,8 +117,8 @@ class Quantizer(Runner):
 
         # script the model
         scripted_model = torch.jit.script(quantized_model)
-        print_datatypes(scripted_model, "Scripted model")
-        logger.info("Estimate the scripted model")
+        # print_datatypes(scripted_model, "Scripted model")
+        logger.info("Estimate the scripted model's size and accuracy")
         estimate_acc_size(scripted_model, self.trainer)
         torch.jit.save(
             scripted_model, os.path.join(self.dir_prefix, "scripted_model.pth.zip")
@@ -136,8 +143,7 @@ class Quantizer(Runner):
 
         # initialize weights
         logger.info("Initialize weights")
-        assert hasattr(self.model, "classifier")
-        model_utils.initialize_params(self.model.classifier, state_dict)
+        model_utils.initialize_params(self.model, state_dict)
 
         if is_pruned:
             logger.info(
@@ -152,7 +158,12 @@ class Quantizer(Runner):
 
         # configuration
         self.model.qconfig = torch.quantization.get_default_qat_qconfig(self.backend)
-        torch.quantization.prepare_qat(self.model, inplace=True)
+
+        # prepare
+        if self.static:
+            torch.quantization.prepare(self.model, inplace=True)
+        else:
+            torch.quantization.prepare_qat(self.model, inplace=True)
 
         # load masks
         self._load_masks()
