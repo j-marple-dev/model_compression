@@ -9,13 +9,15 @@
 import argparse
 
 from src.runners import curr_time, initialize
-from src.runners.pruner import Pruner
 
 # arguments
 parser = argparse.ArgumentParser(description="Model pruner.")
 parser.add_argument("--gpu", default=0, type=int, help="GPU id to use")
 parser.add_argument(
-    "--resume", type=str, default="", help="Input log directory name to resume"
+    "--resume",
+    type=str,
+    default="",
+    help="Input log directory name to resume from the last saved model",
 )
 parser.add_argument(
     "--wlog", dest="wlog", action="store_true", help="Turns on wandb logging"
@@ -35,6 +37,10 @@ config, dir_prefix, device = initialize("prune", args.config, args.resume, args.
 # run pruning
 wandb_name = args.resume if args.resume else curr_time
 wandb_init_params = dict(config=config, name=wandb_name, group=args.config)
+Pruner = getattr(
+    __import__("src.runners.pruner", fromlist=[""]), config["PRUNE_METHOD"]
+)
+
 pruner = Pruner(
     config=config,
     dir_prefix=dir_prefix,

@@ -34,7 +34,9 @@ def initialize_params(model: Any, state_dict: Dict[str, Any], with_mask=True) ->
     # 1. filter out unnecessary keys
     pretrained_dict = {}
     for k, v in state_dict.items():
-        if k in model_dict and (with_mask or "weight_mask" not in k):
+        if k in model_dict and (
+            with_mask or ("weight_mask" not in k and "bias_mask" not in k)
+        ):
             pretrained_dict[k] = v
     # 2. overwrite entries in the existing state dict
     model_dict.update(pretrained_dict)
@@ -56,17 +58,6 @@ def get_pretrained_model_info(model: nn.Module) -> Dict[str, str]:
     return model_info
 
 
-def get_param_names(model: nn.Module) -> Set[str]:
-    """Get param names in the model."""
-    layer_names = set()
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            continue
-        layer_name, weight_type = name.rsplit(".", 1)
-        layer_names.add(layer_name)
-    return layer_names
-
-
 def get_model_tensor_datatype(model: nn.Module) -> List[Tuple[str, torch.dtype]]:
     """Print all tensors data types."""
     return [
@@ -76,21 +67,44 @@ def get_model_tensor_datatype(model: nn.Module) -> List[Tuple[str, torch.dtype]]
     ]
 
 
+def get_params(
+    model: nn.Module, extract_conditions: Tuple[Tuple[Any, str], ...]
+) -> Tuple[Tuple[nn.Module, str], ...]:
+    """Get parameters(weight and bias) tuples for pruning."""
+    t = []
+    for module in model.modules():
+        for module_type, param_name in extract_conditions:
+            # it returns true when we try hasattr(even though it returns None)
+            if (
+                isinstance(module, module_type)
+                and getattr(module, param_name) is not None
+            ):
+                t += [(module, param_name)]
+    return tuple(t)
+
+
+def get_layernames(model: nn.Module) -> Set[str]:
+    """Get parameters(weight and bias) layer name.
+
+    Notes:
+       No usage now, can be deprecated.
+    """
+
+    t = set()
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        layer_name = name.rsplit(".", 1)[0]
+        t.add(layer_name)
+    return t
+
+
 def get_model_size_mb(model: nn.Module) -> float:
     """Get the model file size."""
     torch.save(model.state_dict(), "temp.p")
     size = os.path.getsize("temp.p") / 1e6
     os.remove("temp.p")
     return size
-
-
-def dummy_pruning(model: nn.Module) -> Tuple[Tuple[nn.Module, str], ...]:
-    """Conduct fake pruning."""
-    params_to_prune = get_weight_tuple(model, bias=False)
-    prune.global_unstructured(
-        params_to_prune, pruning_method=prune.L1Unstructured, amount=0.0,
-    )
-    return params_to_prune
 
 
 def remove_pruning_reparameterization(
@@ -110,44 +124,44 @@ def get_masks(model: nn.Module) -> Dict[str, torch.Tensor]:
     return mask
 
 
-def get_weight_tuple(
-    model: nn.Module, bias: bool = False
-) -> Tuple[Tuple[nn.Module, str], ...]:
-    """Get weight and bias tuples for pruning."""
-    t = []
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            continue
-        layer_name, weight_type = name.rsplit(".", 1)
-        if weight_type == "weight" or (bias and weight_type == "bias"):
-            t.append((eval("model." + dot2bracket(layer_name)), weight_type,))
-    return tuple(t)
+def dummy_pruning(params_all: Tuple[Tuple[nn.Module, str], ...]) -> None:
+    """Conduct fake pruning."""
+    prune.global_unstructured(
+        params_all, pruning_method=prune.L1Unstructured, amount=0.0,
+    )
 
 
 def sparsity(
-    params_all: Tuple[Tuple[nn.Module, str], ...], module_name: str = ""
+    params_all: Tuple[Tuple[nn.Module, str], ...],
+    module_types: Tuple[Any, ...] = (
+        nn.Conv2d,
+        nn.Linear,
+        nn.BatchNorm1d,
+        nn.BatchNorm2d,
+    ),
 ) -> float:
     """Get the proportion of zeros in weights (default: model's sparsity)."""
     n_zero = n_total = 0
 
-    for module, wtype in params_all:
-        if module_name not in str(module):
+    for module, param_name in params_all:
+        match = next((m for m in module_types if type(module) is m), None)
+        if not match:
             continue
-        n_zero += int(torch.sum(getattr(module, wtype) == 0.0).item())
-        n_total += getattr(module, wtype).nelement()
+        n_zero += int(torch.sum(getattr(module, param_name) == 0.0).item())
+        n_total += getattr(module, param_name).nelement()
 
     return (100.0 * n_zero / n_total) if n_total != 0 else 0.0
 
 
-def mask_sparsity(model: nn.Module) -> float:
+def mask_sparsity(params_all: Tuple[Tuple[nn.Module, str], ...]) -> float:
     """Get the ratio of zeros in weight masks."""
     n_zero = n_total = 0
-    param_names = get_param_names(model)
-
-    for w in param_names:
-        param_instance = eval("model." + dot2bracket(w) + ".weight_mask")
-        n_zero += int(torch.sum(param_instance == 0.0).item())
-        n_total += param_instance.nelement()
+    for module, param_name in params_all:
+        param_mask_name = param_name + "_mask"
+        if hasattr(module, param_mask_name):
+            param = getattr(module, param_mask_name)
+            n_zero += int(torch.sum(param == 0.0).item())
+            n_total += param.nelement()
 
     return (100.0 * n_zero / n_total) if n_total != 0 else 0.0
 

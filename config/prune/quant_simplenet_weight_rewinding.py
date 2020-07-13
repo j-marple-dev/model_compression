@@ -5,14 +5,14 @@
 - Email: jhkim@jmarple.ai
 """
 
-from config.train import simplenet
+from config.train import quant_simplenet
 
-train_config = simplenet.config
-train_config["WARMUP_EPOCHS"] = 5
+train_config = quant_simplenet.config
 config = {
     "TRAIN_CONFIG": train_config,
     "EPOCHS": 100,
     "N_PRUNING_ITER": 10,
+    "PRUNE_METHOD": "LotteryTicketHypothesis",
     "PRUNE_AMOUNT": 0.2,
     "STORE_PARAM_BEFORE": 10,
     "PRUNE_START_FROM": 10,

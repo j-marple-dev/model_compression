@@ -254,6 +254,19 @@ class Trainer(Runner):
         acc = self.get_epoch_accuracy(is_test=True)
         return avg_loss, acc
 
+    @torch.no_grad()
+    def warmup_one_iter(self) -> None:
+        """Run one iter for wramup."""
+        self.model.eval()
+        for data in self.testloader:
+            images, labels = data[0].to(self.device), data[1].to(self.device)
+
+            # forward + backward + optimize
+            loss, outputs = self.criterion(
+                model=self.model, images=images, labels=labels
+            )
+            return None
+
     def save_params(
         self,
         model_path: str,

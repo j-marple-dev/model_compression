@@ -231,6 +231,7 @@ class PruneConfigValidator(ConfigValidator):
         self.necessary_config_names = {
             "TRAIN_CONFIG",
             "N_PRUNING_ITER",
+            "PRUNE_METHOD",
             "PRUNE_AMOUNT",
             "STORE_PARAM_BEFORE",
             "PRUNE_START_FROM",
@@ -244,6 +245,9 @@ class PruneConfigValidator(ConfigValidator):
         # validate training config
         TrainConfigValidator(self.config["TRAIN_CONFIG"], log=False).check()
 
+        # validate prune config
+        self.check_prune_methods()
+
         # if SEED is not specified, set it same as training config's SEED
         if "SEED" not in self.config:
             self.config["SEED"] = self.config["TRAIN_CONFIG"]["SEED"]
@@ -251,25 +255,37 @@ class PruneConfigValidator(ConfigValidator):
         # if EPOCHS is not specified, set it same as training config's EPOCHS
         if "EPOCHS" not in self.config:
             self.config["EPOCHS"] = self.config["TRAIN_CONFIG"]["EPOCHS"]
+
         # training config should contain the same epoch number in pruning config
         else:
             self.config["TRAIN_CONFIG"]["EPOCHS"] = self.config["EPOCHS"]
 
         # check valid range and type
-        assert self.config["N_PRUNING_ITER"] > 0
-        assert isinstance(self.config["N_PRUNING_ITER"], int)
-
         assert self.config["EPOCHS"] > 0
         assert isinstance(self.config["EPOCHS"], int)
 
-        assert 0 < self.config["PRUNE_AMOUNT"] < 1.0
-        assert isinstance(self.config["PRUNE_AMOUNT"], float)
+        assert 0 < self.config["N_PRUNING_ITER"]
+        assert isinstance(self.config["N_PRUNING_ITER"], int)
 
         assert 0 <= self.config["STORE_PARAM_BEFORE"] <= self.config["EPOCHS"]
         assert isinstance(self.config["STORE_PARAM_BEFORE"], int)
 
         assert 0 <= self.config["PRUNE_START_FROM"] <= self.config["EPOCHS"]
         assert isinstance(self.config["PRUNE_START_FROM"], int)
+
+    def check_prune_methods(self) -> None:
+        """Check prune methods config validity."""
+        # get criterion class lists
+        pruner_names = get_class_names_in_files(
+            "src" + os.path.sep + "runners" + os.path.sep + "pruner.py"
+        )
+        pruner_names.remove("Pruner")
+
+        # Check pruner method in config exists
+        assert self.config["PRUNE_METHOD"] in pruner_names
+
+        assert 0.0 < self.config["PRUNE_AMOUNT"] < 1.0
+        assert isinstance(self.config["PRUNE_AMOUNT"], float)
 
 
 class QuantizeConfigValidator(TrainConfigValidator):

@@ -5,11 +5,12 @@
 - Email: jhkim@jmarple.ai
 """
 
-
+import abc
 import os
 from typing import Any, Callable, Dict, List, Tuple
 
 import torch
+import torch.nn as nn
 import torch.nn.utils.prune as prune
 
 from src.format import percent_format
@@ -50,8 +51,34 @@ class Pruner(Runner):
             wandb_init_params=wandb_init_params,
         )
         self.model = self.trainer.model
-        self.params_to_prune = model_utils.get_weight_tuple(self.model, bias=False)
-        self.params_all = model_utils.get_weight_tuple(self.model, bias=True)
+
+        self.params_all = model_utils.get_params(
+            self.model,
+            (
+                (nn.Conv2d, "weight"),
+                (nn.Conv2d, "bias"),
+                (nn.BatchNorm2d, "weight"),
+                (nn.BatchNorm2d, "bias"),
+                (nn.Linear, "weight"),
+                (nn.Linear, "bias"),
+            ),
+        )
+        self.params_to_prune = self.get_params_to_prune()
+
+        # to calculate sparsity properly
+        prune.global_unstructured(
+            self.params_all, pruning_method=prune.L1Unstructured, amount=0.0,
+        )
+
+    @abc.abstractmethod
+    def prune_params(self) -> None:
+        """Run pruning."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_params_to_prune(self) -> Tuple[Tuple[nn.Module, str], ...]:
+        """Get parameters to prune."""
+        raise NotImplementedError
 
     def reset(
         self, prune_iter: int, resumed: bool = False,
@@ -75,6 +102,7 @@ class Pruner(Runner):
             mask_sparsity = 0.0
             conv_sparsity = 0.0
             fc_sparsity = 0.0
+            bn_sparsity = 0.0
 
             # directory names for checkpionts
             checkpt_dir = self.pretrain_dir_name
@@ -87,19 +115,23 @@ class Pruner(Runner):
         else:
             start_epoch = self.config["PRUNE_START_FROM"]
 
-            # prune
             if not resumed:
-                prune.global_unstructured(
-                    self.params_to_prune,
-                    pruning_method=prune.L1Unstructured,
-                    amount=self.config["PRUNE_AMOUNT"],
-                )
+                self.prune_params()
+            logger.info("Forward model for one iter to warmup")
+            self.trainer.warmup_one_iter()
 
             # sparsities
             sparsity = model_utils.sparsity(self.params_all)
-            conv_sparsity = model_utils.sparsity(self.params_all, module_name="Conv")
-            fc_sparsity = model_utils.sparsity(self.params_all, module_name="Linear")
-            mask_sparsity = model_utils.mask_sparsity(self.model)
+            conv_sparsity = model_utils.sparsity(
+                self.params_all, module_types=(nn.Conv2d,)
+            )
+            fc_sparsity = model_utils.sparsity(
+                self.params_all, module_types=(nn.Linear,)
+            )
+            bn_sparsity = model_utils.sparsity(
+                self.params_all, module_types=(nn.BatchNorm2d,)
+            )
+            mask_sparsity = model_utils.mask_sparsity(self.params_all)
 
             # directory name for checkpoints
             checkpt_dir = f"{prune_iter}_{(sparsity):.2f}_{self.dir_postfix}".replace(
@@ -123,6 +155,7 @@ class Pruner(Runner):
         sparsity_info.append(("sparsity/mask", mask_sparsity, percent_format))
         sparsity_info.append(("sparsity/conv", conv_sparsity, percent_format))
         sparsity_info.append(("sparsity/fc", fc_sparsity, percent_format))
+        sparsity_info.append(("sparsity/bn", bn_sparsity, percent_format))
 
         return start_epoch, sparsity_info
 
@@ -138,10 +171,6 @@ class Pruner(Runner):
         # check the pruning iteration
         last_iter = self._check_pruning_iter_from_filepath()
 
-        # model should contain weight_mask
-        if last_iter > -1:
-            model_utils.dummy_pruning(self.model)
-
         return last_iter
 
     def run(self, resume_info_path: str = "") -> None:
@@ -151,10 +180,7 @@ class Pruner(Runner):
         if resume_info_path:
             start_iter = self.resume()
             epoch_to_resume = self.trainer.resume()
-            logger.info("Run one epoch for warming-up")
-            self.trainer.test_one_epoch()
 
-        # pretraining and pruning iteration
         for i in range(start_iter, self.config["N_PRUNING_ITER"]):
             start_epoch, sparsity_info = self.reset(i, epoch_to_resume > 0)
 
@@ -202,3 +228,206 @@ class Pruner(Runner):
                 last_iter = int(checkpt_dir.split("_", 1)[0])
 
         return last_iter
+
+
+class LotteryTicketHypothesis(Pruner):
+    """LTH on whole layer.
+
+    Reference:
+        The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks
+        (https://arxiv.org/pdf/1803.03635.pdf)
+        Stabilizing the Lottery Ticket Hypothesis
+        (https://arxiv.org/pdf/1903.01611.pdf)
+        Comparing Rewinding and Fine-tuning in Neural Network Pruning
+        (https://arxiv.org/pdf/2003.02389.pdf)
+    """
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        dir_prefix: str,
+        wandb_log: bool,
+        wandb_init_params: Dict[str, Any],
+        device: torch.device,
+    ) -> None:
+        """Initialize."""
+        super(LotteryTicketHypothesis, self).__init__(
+            config, dir_prefix, wandb_log, wandb_init_params, device
+        )
+
+    def get_params_to_prune(self) -> Tuple[Tuple[nn.Module, str], ...]:
+        """Get parameters to prune."""
+        return model_utils.get_params(
+            self.model,
+            ((nn.Conv2d, "weight"), (nn.BatchNorm2d, "weight"), (nn.Linear, "weight")),
+        )
+
+    def prune_params(self) -> None:
+        """Apply prune."""
+        prune.global_unstructured(
+            self.params_to_prune,
+            pruning_method=prune.L1Unstructured,
+            amount=self.config["PRUNE_AMOUNT"],
+        )
+
+
+class LotteryTicketHypothesisFC(LotteryTicketHypothesis):
+    """LTH on fc layer only.
+
+    Reference:
+        The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks
+        (https://arxiv.org/pdf/1803.03635.pdf)
+        Stabilizing the Lottery Ticket Hypothesis
+        (https://arxiv.org/pdf/1903.01611.pdf)
+        Comparing Rewinding and Fine-tuning in Neural Network Pruning
+        (https://arxiv.org/pdf/2003.02389.pdf)
+    """
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        dir_prefix: str,
+        wandb_log: bool,
+        wandb_init_params: Dict[str, Any],
+        device: torch.device,
+    ) -> None:
+        """Initialize."""
+        super(LotteryTicketHypothesisFC, self).__init__(
+            config, dir_prefix, wandb_log, wandb_init_params, device
+        )
+        self.params_to_prune = model_utils.get_params(
+            self.model, ((nn.Linear, "weight"),)
+        )
+
+
+class NetworkSlimming(Pruner):
+    """Network slimming(slim) on bn 2d.
+
+    Reference:
+        Learning Efficient Convolutional Networks through Network Slimming
+        (https://arxiv.org/pdf/1708.06519.pdf)
+    """
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        dir_prefix: str,
+        wandb_log: bool,
+        wandb_init_params: Dict[str, Any],
+        device: torch.device,
+    ) -> None:
+        """Initialize."""
+        self._bn_to_conv: Dict[nn.BatchNorm2d, nn.Conv2d] = dict()
+        super(NetworkSlimming, self).__init__(
+            config, dir_prefix, wandb_log, wandb_init_params, device
+        )
+
+    @property
+    def bn_to_conv(self) -> Dict[nn.BatchNorm2d, nn.Conv2d]:
+        """Create bn_to_conv when it is needed."""
+        if not self._bn_to_conv:
+            self._bn_to_conv = self.get_bn_to_conv()
+        return self._bn_to_conv
+
+    def get_bn_to_conv(self) -> Dict[nn.BatchNorm2d, nn.Conv2d]:
+        """Get a dictionary key: bacthnorm2d, val: conv2d."""
+        layers = [
+            v for v in self.model.modules() if type(v) in {nn.Conv2d, nn.BatchNorm2d}
+        ]
+        bn_to_conv = dict()
+        for i in range(1, len(layers)):
+            if type(layers[i - 1]) is nn.Conv2d and type(layers[i]) is nn.BatchNorm2d:
+                bn_to_conv[layers[i]] = layers[i - 1]
+        return bn_to_conv
+
+    def get_params_to_prune(self) -> Tuple[Tuple[nn.Module, str], ...]:
+        """Get parameters to prune."""
+        # Cases there is no corresponding conv layer with bn
+        all_bn_weights = model_utils.get_params(
+            self.model, ((nn.BatchNorm2d, "weight"),)
+        )
+        return tuple(
+            (module, name)
+            for (module, name) in all_bn_weights
+            if module in self.bn_to_conv
+        )
+
+    def prune_params(self) -> None:
+        """Apply prune."""
+        # Dont know we will use this or not
+        # params_to_prune = drop_overly_pruned(self.params_to_prune)
+        prune.global_unstructured(
+            self.params_to_prune,
+            pruning_method=prune.L1Unstructured,
+            amount=self.config["PRUNE_AMOUNT"],
+        )
+
+        # DEBUG: remove after it shows stable performance
+        # t = nn.utils.parameters_to_vector([getattr(*p) for p in params_to_prune_constrained])
+        # print('t', t)
+        self.update_masks()
+
+    def update_masks(self) -> None:
+        """Copy bn weight masks to bias masks and conv masks"""
+        for bn, conv in self.bn_to_conv.items():
+            # Copy batchnorm weight_mask to bias_mask
+            bn_buffers = {name: buf for name, buf in bn.named_buffers()}
+            bn_mask = bn_buffers["weight_mask"].detach().clone()
+            bn_buffers["bias_mask"].set_(bn_mask)
+
+            conv_buffers = {name: buf for name, buf in conv.named_buffers()}
+            if "bias_mask" in conv_buffers:
+                conv_buffers["bias_mask"].set_(bn_mask)
+
+            # conv2d - batchnorm - activation (CBA)
+            # bn_mask: [out], conv: [out, in, h, w]
+            [o, i, h, w] = conv_buffers["weight_mask"].shape
+
+            # check shape -> if its not shaped as CBA
+            if bn_mask.shape[0] != o:
+                continue
+            # bn_mask: [out, 1, 1]
+            bn_mask = bn_mask.view(o, 1, 1)
+            # bn_mask: [out, h, w]
+            bn_mask = bn_mask.repeat(1, h, w)
+            # bn_mask: [out, 1, h, w]
+            bn_mask = bn_mask.unsqueeze(1)
+            # bn_mask: [out, in, h, w]
+            bn_mask = bn_mask.repeat(1, i, 1, 1)
+
+            conv_buffers["weight_mask"].set_(bn_mask)
+
+        # DEBUG: checking mask
+        """
+        layer_dict = {k: v for k, v in self.model.named_modules()}
+        bn_zero = bn_total = 0
+        cnn_zero = cnn_total = 0
+        for name, layer in layer_dict.items():
+            if isinstance(layer, nn.Conv2d):
+                z = int(torch.sum(getattr(layer, "weight_mask") == 0.0).item())
+                b = int(torch.sum(getattr(layer, "bias_mask") == 0.0).item())
+                t = getattr(layer, "weight_mask").nelement()
+                print(f"{name} {z} {b} {t} {z/t*100:.2f}")
+                cnn_zero += z
+                cnn_total += t
+            if isinstance(layer, nn.BatchNorm2d):
+                z = int(torch.sum(getattr(layer, "weight_mask") == 0.0).item())
+                b = int(torch.sum(getattr(layer, "bias_mask") == 0.0).item())
+                t = getattr(layer, "weight_mask").nelement()
+                print(f"{name} {z} {b} {t} {z/t*100:.2f}")
+                bn_zero += z
+                bn_total += t
+        print(f"bn {bn_zero/bn_total*100:.2f}, cnn {cnn_zero/cnn_total*100:.2f}")
+        """
+
+
+def drop_overly_pruned(params: Tuple[Any, str]) -> Tuple[Tuple[Any, str], ...]:
+    """Exclude excessively pruned params to preserve flow"""
+    params_to_prune = []
+    for layer, layer_type in params:
+        total = int(layer.weight_mask.nelement())
+        non_zero = int((layer.weight_mask != 0).sum().detach())
+        # prune only when preserved more than 20% of filters
+        if non_zero / total > 0.2:
+            params_to_prune.append((layer, layer_type))
+    return tuple(params_to_prune)

@@ -76,6 +76,17 @@ class Quantizer(Runner):
         # initialize the model
         logger.info("Initialize the model")
         self.model = self.trainer.model
+        self.params_all = model_utils.get_params(
+            self.model,
+            (
+                (nn.Conv2d, "weight"),
+                (nn.Conv2d, "bias"),
+                (nn.BatchNorm2d, "weight"),
+                (nn.BatchNorm2d, "bias"),
+                (nn.Linear, "weight"),
+                (nn.Linear, "bias"),
+            ),
+        )
         self._init_model(checkpoint_path)
 
     def resume(self) -> int:
@@ -139,7 +150,7 @@ class Quantizer(Runner):
 
         if is_pruned:
             logger.info("Dummy prunning to load pruned weights")
-            self.params_pruned = model_utils.dummy_pruning(self.model)
+            model_utils.dummy_pruning(self.params_all)
 
         # initialize weights
         logger.info("Initialize weights")
@@ -150,7 +161,7 @@ class Quantizer(Runner):
                 "Get masks and remove prunning reparameterization for prepare_qat"
             )
             self.mask = model_utils.get_masks(self.model)
-            model_utils.remove_pruning_reparameterization(self.params_pruned)
+            model_utils.remove_pruning_reparameterization(self.params_all)
 
     def _prepare(self) -> None:
         """Quantize the model."""
@@ -173,7 +184,7 @@ class Quantizer(Runner):
         if not self.mask:
             return
 
-        self.params_pruned = model_utils.dummy_pruning(self.model)
+        model_utils.dummy_pruning(self.params_all)
         for name, _ in self.model.named_buffers():
             if name in self.mask:
                 module_name, mask_name = name.rsplit(".", 1)
@@ -187,7 +198,7 @@ class Quantizer(Runner):
     def _quantize(self, model: nn.Module) -> nn.Module:
         """Quantize the trained model."""
         if self.mask:
-            model_utils.remove_pruning_reparameterization(self.params_pruned)
+            model_utils.remove_pruning_reparameterization(self.params_all)
 
         # check the accuracy after each epoch
         quantized_model = torch.quantization.convert(model.eval(), inplace=False)
