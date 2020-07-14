@@ -11,7 +11,7 @@ import logging.handlers
 import os
 import random
 import sys
-from typing import Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import torch
@@ -62,15 +62,19 @@ def get_dataset(
     dataset_name: str = "CIFAR100",
     transform_train: str = "simple_augment_train_cifar100",
     transform_test: str = "simple_augment_test_cifar100",
+    transform_train_params: Dict[str, int] = None,
 ) -> Tuple[VisionDataset, VisionDataset]:
     """Get dataset for training and testing."""
+    if not transform_train_params:
+        transform_train_params = dict()
+
     # dataset
     dataset = getattr(__import__("torchvision.datasets", fromlist=[""]), dataset_name)
 
     # train dataset
     transform_train = getattr(
         __import__("src.augmentation.policies", fromlist=[""]), transform_train,
-    )()
+    )(**transform_train_params)
     trainset = dataset(
         root="save/data", train=True, download=True, transform=transform_train,
     )

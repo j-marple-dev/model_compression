@@ -53,6 +53,7 @@ class TrainConfigValidator(ConfigValidator):
 
         self.necessary_config_names = {
             "AUG_TRAIN",
+            "AUG_TRAIN_PARAMS",
             "AUG_TEST",
             "DATASET",
             "MODEL_NAME",
@@ -98,6 +99,8 @@ class TrainConfigValidator(ConfigValidator):
             assert cutmix_config["beta"] > 0
             assert "prob" in cutmix_config
             assert 0 < cutmix_config["prob"] <= 1
+
+        assert isinstance(self.config["AUG_TRAIN_PARAMS"], dict)
 
         self.check_criterion()
         self.check_lr_schedulers()

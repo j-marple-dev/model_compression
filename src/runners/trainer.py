@@ -55,7 +55,10 @@ class Trainer(Runner):
 
         # get datasets
         trainset, testset = utils.get_dataset(
-            config["DATASET"], config["AUG_TRAIN"], config["AUG_TEST"],
+            config["DATASET"],
+            config["AUG_TRAIN"],
+            config["AUG_TEST"],
+            config["AUG_TRAIN_PARAMS"],
         )
         logger.info("Dataset prepared")
 

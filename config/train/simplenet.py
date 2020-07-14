@@ -10,6 +10,7 @@ import os
 config = {
     "SEED": 777,
     "AUG_TRAIN": "simple_augment_train_cifar100",
+    "AUG_TRAIN_PARAMS": dict(),
     "AUG_TEST": "simple_augment_test_cifar100",
     "DATASET": "CIFAR100",
     "MODEL_NAME": "simplenet",

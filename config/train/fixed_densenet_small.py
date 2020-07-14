@@ -10,6 +10,7 @@ import os
 config = {
     "SEED": 777,
     "AUG_TRAIN": "autoaugment_train_cifar100_riair",
+    "AUG_TRAIN_PARAMS": dict(),
     "AUG_TEST": "simple_augment_test_cifar100",
     "DATASET": "CIFAR100",
     "MODEL_NAME": "fixed_densenet",
