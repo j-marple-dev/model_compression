@@ -153,10 +153,21 @@ def sparsity(
     return (100.0 * n_zero / n_total) if n_total != 0 else 0.0
 
 
-def mask_sparsity(params_all: Tuple[Tuple[nn.Module, str], ...]) -> float:
+def mask_sparsity(
+    params_all: Tuple[Tuple[nn.Module, str], ...],
+    module_types: Tuple[Any, ...] = (
+        nn.Conv2d,
+        nn.Linear,
+        nn.BatchNorm1d,
+        nn.BatchNorm2d,
+    ),
+) -> float:
     """Get the ratio of zeros in weight masks."""
     n_zero = n_total = 0
     for module, param_name in params_all:
+        match = next((m for m in module_types if type(module) is m), None)
+        if not match:
+            continue
         param_mask_name = param_name + "_mask"
         if hasattr(module, param_mask_name):
             param = getattr(module, param_mask_name)

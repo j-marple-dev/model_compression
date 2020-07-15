@@ -71,7 +71,7 @@ class Pruner(Runner):
         )
 
     @abc.abstractmethod
-    def prune_params(self) -> None:
+    def prune_params(self, prune_iter: int) -> None:
         """Run pruning."""
         raise NotImplementedError
 
@@ -98,11 +98,10 @@ class Pruner(Runner):
         # pretraining
         if prune_iter == -1:
             start_epoch = 0
-            sparsity = 0.0
-            mask_sparsity = 0.0
-            conv_sparsity = 0.0
-            fc_sparsity = 0.0
-            bn_sparsity = 0.0
+            mask_total_sparsity = zero_total_sparsity = 0
+            mask_conv_sparsity = zero_conv_sparsity = 0
+            mask_fc_sparsity = zero_fc_sparsity = 0
+            mask_bn_sparsity = zero_bn_sparsity = 0
 
             # directory names for checkpionts
             checkpt_dir = self.pretrain_dir_name
@@ -116,27 +115,35 @@ class Pruner(Runner):
             start_epoch = self.config["PRUNE_START_FROM"]
 
             if not resumed:
-                self.prune_params()
+                self.prune_params(prune_iter)
             logger.info("Forward model for one iter to warmup")
             self.trainer.warmup_one_iter()
 
             # sparsities
-            sparsity = model_utils.sparsity(self.params_all)
-            conv_sparsity = model_utils.sparsity(
+            zero_total_sparsity = model_utils.sparsity(self.params_all)
+            zero_conv_sparsity = model_utils.sparsity(
                 self.params_all, module_types=(nn.Conv2d,)
             )
-            fc_sparsity = model_utils.sparsity(
+            zero_fc_sparsity = model_utils.sparsity(
                 self.params_all, module_types=(nn.Linear,)
             )
-            bn_sparsity = model_utils.sparsity(
+            zero_bn_sparsity = model_utils.sparsity(
                 self.params_all, module_types=(nn.BatchNorm2d,)
             )
-            mask_sparsity = model_utils.mask_sparsity(self.params_all)
+            mask_total_sparsity = model_utils.mask_sparsity(self.params_all)
+            mask_conv_sparsity = model_utils.mask_sparsity(
+                self.params_all, module_types=(nn.Conv2d,)
+            )
+            mask_fc_sparsity = model_utils.mask_sparsity(
+                self.params_all, module_types=(nn.Linear,)
+            )
+            mask_bn_sparsity = model_utils.mask_sparsity(
+                self.params_all, module_types=(nn.BatchNorm2d,)
+            )
 
             # directory name for checkpoints
-            checkpt_dir = f"{prune_iter}_{(sparsity):.2f}_{self.dir_postfix}".replace(
-                ".", "_"
-            )
+            checkpt_dir = f"{prune_iter}_{(mask_total_sparsity):.2f}_"
+            f"{self.dir_postfix}".replace(".", "_")
             logger.info(
                 "Initialized Pruning Settings: "
                 f"[{prune_iter} | {self.config['N_PRUNING_ITER']-1}]"
@@ -150,12 +157,26 @@ class Pruner(Runner):
         self.trainer.reset(checkpt_dir)
 
         # sparsity info for logging
-        sparsity_info = []
-        sparsity_info.append(("sparsity/total", sparsity, percent_format))
-        sparsity_info.append(("sparsity/mask", mask_sparsity, percent_format))
-        sparsity_info.append(("sparsity/conv", conv_sparsity, percent_format))
-        sparsity_info.append(("sparsity/fc", fc_sparsity, percent_format))
-        sparsity_info.append(("sparsity/bn", bn_sparsity, percent_format))
+        sparsity_info: List[Tuple[str, float, Callable]] = []
+        sparsity_info.append(
+            ("zero_sparsity/total", zero_total_sparsity, percent_format)
+        )
+        sparsity_info.append(("zero_sparsity/conv", zero_conv_sparsity, percent_format))
+        sparsity_info.append(("zero_sparsity/fc", zero_fc_sparsity, percent_format))
+        sparsity_info.append(("zero_sparsity/bn", zero_bn_sparsity, percent_format))
+        sparsity_info.append(
+            ("mask_sparsity/total", mask_total_sparsity, percent_format)
+        )
+        sparsity_info.append(("mask_sparsity/conv", mask_conv_sparsity, percent_format))
+        sparsity_info.append(("mask_sparsity/fc", mask_fc_sparsity, percent_format))
+        sparsity_info.append(("mask_sparsity/bn", mask_bn_sparsity, percent_format))
+        sparsity_info.append(
+            (
+                "mask_sparsity/conv_target",
+                self.get_target_sparsity(prune_iter) * 100.0,
+                percent_format,
+            )
+        )
 
         return start_epoch, sparsity_info
 
@@ -181,8 +202,8 @@ class Pruner(Runner):
             start_iter = self.resume()
             epoch_to_resume = self.trainer.resume()
 
-        for i in range(start_iter, self.config["N_PRUNING_ITER"]):
-            start_epoch, sparsity_info = self.reset(i, epoch_to_resume > 0)
+        for prune_iter in range(start_iter, self.config["N_PRUNING_ITER"]):
+            start_epoch, sparsity_info = self.reset(prune_iter, epoch_to_resume > 0)
 
             # if there is a valid file to resume
             if start_epoch < epoch_to_resume:
@@ -196,10 +217,19 @@ class Pruner(Runner):
                 if self.config["STORE_PARAM_BEFORE"] - 1 == epoch:
                     self.save_init_params()
 
-            if i == -1:
+            if prune_iter == -1:
                 logger.info("Pretraining Done")
             else:
-                logger.info(f"Pruning Done: [{i} | {self.config['N_PRUNING_ITER']-1}]")
+                logger.info(
+                    f"Pruning Done: [{prune_iter} | {self.config['N_PRUNING_ITER']-1}]"
+                )
+
+    def get_target_sparsity(self, prune_iter: int) -> float:
+        """Get target sparsity for current prune epoch."""
+        target_density = 1.0
+        for _ in range(prune_iter + 1):
+            target_density = target_density * (1 - self.config["PRUNE_AMOUNT"])
+        return 1 - target_density
 
     def save_init_params(self) -> None:
         """Set initial weights."""
@@ -262,7 +292,7 @@ class LotteryTicketHypothesis(Pruner):
             ((nn.Conv2d, "weight"), (nn.BatchNorm2d, "weight"), (nn.Linear, "weight")),
         )
 
-    def prune_params(self) -> None:
+    def prune_params(self, prune_iter: int) -> None:
         """Apply prune."""
         prune.global_unstructured(
             self.params_to_prune,
@@ -352,17 +382,28 @@ class NetworkSlimming(Pruner):
             if module in self.bn_to_conv
         )
 
-    def prune_params(self) -> None:
+    def prune_params(self, prune_iter: int) -> None:
         """Apply prune."""
-        # Dont know we will use this or not
-        # params_to_prune = drop_overly_pruned(self.params_to_prune)
-        prune.global_unstructured(
-            self.params_to_prune,
-            pruning_method=prune.L1Unstructured,
-            amount=self.config["PRUNE_AMOUNT"],
-        )
+        target_sparsity = self.get_target_sparsity(prune_iter)
+        sparsity = model_utils.mask_sparsity(self.params_all, (nn.Conv2d,)) / 100
+        prev_sparsity = sparsity
+        base_amount = amount = 0.001
 
-        # DEBUG: remove after it shows stable performance
+        params_to_prune = drop_overly_pruned(self.params_to_prune)
+        # Give little margin to target_sparsity
+        # target_sparsity never goes less than amount when used as intended
+        while sparsity <= target_sparsity - amount:
+            prune.global_unstructured(
+                params_to_prune, pruning_method=prune.L1Unstructured, amount=amount,
+            )
+            self.update_masks()
+            prev_sparsity = sparsity
+            sparsity = model_utils.mask_sparsity(self.params_all, (nn.Conv2d,)) / 100
+            if sparsity == prev_sparsity:
+                amount += base_amount
+
+        # DEBUG: Check all parameters to be pruned
+        # TODO: Will be deprecated after it shows stable performance
         # t = nn.utils.parameters_to_vector([getattr(*p) for p in params_to_prune_constrained])
         # print('t', t)
         self.update_masks()
@@ -397,7 +438,8 @@ class NetworkSlimming(Pruner):
 
             conv_buffers["weight_mask"].set_(bn_mask)
 
-        # DEBUG: checking mask
+        # DEBUG: Check mask information
+        # TODO: Will be deprecated after it shows stable performance
         """
         layer_dict = {k: v for k, v in self.model.named_modules()}
         bn_zero = bn_total = 0
@@ -421,7 +463,9 @@ class NetworkSlimming(Pruner):
         """
 
 
-def drop_overly_pruned(params: Tuple[Any, str]) -> Tuple[Tuple[Any, str], ...]:
+def drop_overly_pruned(
+    params: Tuple[Tuple[Any, str], ...]
+) -> Tuple[Tuple[Any, str], ...]:
     """Exclude excessively pruned params to preserve flow"""
     params_to_prune = []
     for layer, layer_type in params:
