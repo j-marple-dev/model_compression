@@ -52,20 +52,26 @@ class WarmupCosineLR(LrScheduler):
 
     # epochs and target_lr are automatically set in config validator
     def __init__(
-        self, warmup_epochs: int, epochs: int, start_lr: float, target_lr: float,
+        self,
+        warmup_epochs: int,
+        epochs: int,
+        start_lr: float,
+        target_lr: float,
+        n_rewinding: int,
     ) -> None:
         """Initialize."""
         self.warmup_epochs = warmup_epochs
-        self.epochs = epochs
         self.base_lr = start_lr
         self.target_lr = target_lr
+        self.period = epochs // n_rewinding
         self.coies = [
-            math.cos((i - warmup_epochs) * math.pi / (epochs - warmup_epochs))
-            for i in range(epochs)
+            math.cos((i - warmup_epochs) * math.pi / (self.period - warmup_epochs))
+            for i in range(self.period)
         ]
 
     def lr(self, epoch: int) -> float:
         """Get learning rate."""
+        epoch %= self.period
         if epoch < self.warmup_epochs:
             return (
                 self.base_lr

@@ -251,6 +251,21 @@ def wlog_weight(model: nn.Module) -> None:
     wandb.log(wlog, commit=False)
 
 
+def split_channels(n_channels: int, n_chunks: int) -> List[int]:
+    """Get splitted channel numbers.
+
+    It adds up all the remainders to the first chunck.
+    """
+    split = [n_channels // n_chunks for _ in range(n_chunks)]
+    split[0] += n_channels - sum(split)
+    return split
+
+
+def count_model_params(model: nn.Module) -> int:
+    """Count and return the total number of model params."""
+    return sum(p.numel() for p in model.parameters())
+
+
 if __name__ == "__main__":
     import doctest
 

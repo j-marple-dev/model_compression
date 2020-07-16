@@ -52,6 +52,10 @@ class Trainer(Runner):
         model_name = self.config["MODEL_NAME"]
         model_config = self.config["MODEL_PARAMS"]
         self.model = model_utils.get_model(model_name, model_config).to(self.device)
+        n_params = model_utils.count_model_params(self.model)
+        logger.info(
+            f"Created a model {self.config['MODEL_NAME']} with {(n_params / 10**6):.2f}M params"
+        )
 
         # get datasets
         trainset, testset = utils.get_dataset(
@@ -64,7 +68,7 @@ class Trainer(Runner):
 
         # transform the training dataset for CutMix augmentation
         if "CUTMIX" in self.config:
-            self.trainset = CutMix(
+            trainset = CutMix(
                 trainset,
                 self.config["MODEL_PARAMS"]["num_classes"],
                 **self.config["CUTMIX"],
@@ -94,6 +98,7 @@ class Trainer(Runner):
             lr=self.config["LR"],
             momentum=self.config["MOMENTUM"],
             weight_decay=self.config["WEIGHT_DECAY"],
+            nesterov=self.config["NESTEROV"],
         )
 
         # learning rate scheduler

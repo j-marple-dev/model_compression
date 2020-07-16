@@ -75,8 +75,8 @@ class Transition(nn.Module):
         super(Transition, self).__init__()
         self.conv = nn.Conv2d(inplanes, outplanes, kernel_size=1, bias=False)
         self.bn = nn.BatchNorm2d(outplanes)
-        self.avg_pool = nn.AvgPool2d(2)
         self.relu = nn.ReLU(inplace=True)
+        self.avg_pool = nn.AvgPool2d(2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward."""

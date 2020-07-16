@@ -5,7 +5,7 @@
 - Email: jwpark@jmarple.ai
 """
 
-from config.train import simplenet
+from config.train.simplenet.cifar100 import simplenet
 
 config = simplenet.config
 config.update(

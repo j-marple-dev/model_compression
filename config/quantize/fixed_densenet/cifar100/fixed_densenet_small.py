@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Configurations for quantization for densenet_small.
+"""Configurations for quantization for fixed_densenet_small.
 
 - Author: Curt-Park
 - Email: jwpark@jmarple.ai
 """
 
-from config.train import fixed_densenet_small
+from config.train.fixed_densenet.cifar100 import fixed_densenet_small
 
 config = fixed_densenet_small.config
 config.update(

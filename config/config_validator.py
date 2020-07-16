@@ -53,7 +53,6 @@ class TrainConfigValidator(ConfigValidator):
 
         self.necessary_config_names = {
             "AUG_TRAIN",
-            "AUG_TRAIN_PARAMS",
             "AUG_TEST",
             "DATASET",
             "MODEL_NAME",
@@ -93,6 +92,11 @@ class TrainConfigValidator(ConfigValidator):
         assert self.config["LR"] > 0
         assert isinstance(self.config["LR"], float)
 
+        if "NESTEROV" in self.config:
+            assert type(self.config["NESTEROV"]) is bool
+        else:
+            self.config["NESTEROV"] = False  # default
+
         if "CUTMIX" in self.config:
             cutmix_config = self.config["CUTMIX"]
             assert "beta" in cutmix_config
@@ -100,7 +104,10 @@ class TrainConfigValidator(ConfigValidator):
             assert "prob" in cutmix_config
             assert 0 < cutmix_config["prob"] <= 1
 
-        assert isinstance(self.config["AUG_TRAIN_PARAMS"], dict)
+        if "AUG_TRAIN_PARAMS" in self.config:
+            assert isinstance(self.config["AUG_TRAIN_PARAMS"], dict)
+        else:
+            self.config["AUG_TRAIN_PARAMS"] = dict()
 
         self.check_criterion()
         self.check_lr_schedulers()
@@ -222,6 +229,18 @@ class TrainConfigValidator(ConfigValidator):
                     <= self.config["LR"]
                 )
                 assert isinstance(self.config["LR_SCHEDULER_PARAMS"]["start_lr"], float)
+
+            # n_rewinding: int
+            if "n_rewinding" not in self.config["LR_SCHEDULER_PARAMS"]:
+                self.config["LR_SCHEDULER_PARAMS"]["n_rewinding"] = 1
+            else:
+                assert type(self.config["LR_SCHEDULER_PARAMS"]["n_rewinding"]) is int
+                assert self.config["LR_SCHEDULER_PARAMS"]["n_rewinding"] > 0
+                assert (
+                    self.config["EPOCHS"]
+                    % self.config["LR_SCHEDULER_PARAMS"]["n_rewinding"]
+                    == 0
+                )
 
 
 class PruneConfigValidator(ConfigValidator):
