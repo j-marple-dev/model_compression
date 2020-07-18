@@ -57,13 +57,17 @@ class WarmupCosineLR(LrScheduler):
         epochs: int,
         start_lr: float,
         target_lr: float,
+        min_lr: float,
         n_rewinding: int,
+        decay: float,
     ) -> None:
         """Initialize."""
         self.warmup_epochs = warmup_epochs
         self.base_lr = start_lr
         self.target_lr = target_lr
+        self.min_lr = min_lr
         self.period = epochs // n_rewinding
+        self.decay = decay
         self.coies = [
             math.cos((i - warmup_epochs) * math.pi / (self.period - warmup_epochs))
             for i in range(self.period)
@@ -71,14 +75,16 @@ class WarmupCosineLR(LrScheduler):
 
     def lr(self, epoch: int) -> float:
         """Get learning rate."""
-        epoch %= self.period
+        n_iter, epoch = divmod(epoch, self.period)
         if epoch < self.warmup_epochs:
-            return (
+            lr = (
                 self.base_lr
                 + (self.target_lr - self.base_lr) / self.warmup_epochs * epoch
             )
         else:
-            return 0.5 * (1 + self.coies[epoch]) * self.target_lr
+            lr = 0.5 * (1 + self.coies[epoch]) * self.target_lr
+        lr *= (1.0 - self.decay) ** n_iter
+        return max(lr, self.min_lr)
 
     def __call__(self, optimizer: Optimizer, epoch: int) -> None:
         """Set optimizer's learning rate."""

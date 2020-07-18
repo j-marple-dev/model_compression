@@ -153,6 +153,12 @@ class TrainConfigValidator(ConfigValidator):
             assert ce_params["num_classes"] > 0
             assert isinstance(ce_params["num_classes"], int)
 
+            if "label_smoothing" not in ce_params:
+                ce_params["label_smoothing"] = 0.0
+            else:
+                assert 0.0 <= ce_params["label_smoothing"] < 1.0
+                assert type(ce_params["label_smoothing"]) is float
+
     def check_regularizer(self) -> None:
         """Check regularizer config validity."""
         if "REGULARIZER" not in self.config:
@@ -199,7 +205,6 @@ class TrainConfigValidator(ConfigValidator):
             for n in self.config["LR_SCHEDULER_PARAMS"]["milestones"]:
                 assert isinstance(n, int)
 
-            # gamma: float
             assert "gamma" in self.config["LR_SCHEDULER_PARAMS"]
             assert 0 < self.config["LR_SCHEDULER_PARAMS"]["gamma"] <= 1.0
             assert isinstance(self.config["LR_SCHEDULER_PARAMS"]["gamma"], float)
@@ -211,7 +216,7 @@ class TrainConfigValidator(ConfigValidator):
             # set target_lr: float
             self.config["LR_SCHEDULER_PARAMS"]["target_lr"] = self.config["LR"]
 
-            # warmp_epochs: int
+            # warmp_epochs
             assert "warmup_epochs" in self.config["LR_SCHEDULER_PARAMS"]
             assert (
                 0
@@ -220,7 +225,7 @@ class TrainConfigValidator(ConfigValidator):
             )
             assert isinstance(self.config["LR_SCHEDULER_PARAMS"]["warmup_epochs"], int)
 
-            # start_lr: float
+            # start_lr
             if self.config["LR_SCHEDULER_PARAMS"]["warmup_epochs"] != 0:
                 assert "start_lr" in self.config["LR_SCHEDULER_PARAMS"]
                 assert (
@@ -230,7 +235,7 @@ class TrainConfigValidator(ConfigValidator):
                 )
                 assert isinstance(self.config["LR_SCHEDULER_PARAMS"]["start_lr"], float)
 
-            # n_rewinding: int
+            # n_rewinding
             if "n_rewinding" not in self.config["LR_SCHEDULER_PARAMS"]:
                 self.config["LR_SCHEDULER_PARAMS"]["n_rewinding"] = 1
             else:
@@ -241,6 +246,20 @@ class TrainConfigValidator(ConfigValidator):
                     % self.config["LR_SCHEDULER_PARAMS"]["n_rewinding"]
                     == 0
                 )
+
+            # min_lr
+            if "min_lr" not in self.config["LR_SCHEDULER_PARAMS"]:
+                self.config["LR_SCHEDULER_PARAMS"]["min_lr"] = 0.0
+            else:
+                assert type(self.config["LR_SCHEDULER_PARAMS"]["min_lr"]) is float
+                assert self.config["LR_SCHEDULER_PARAMS"]["min_lr"] >= 0.0
+
+            # decay
+            if "decay" not in self.config["LR_SCHEDULER_PARAMS"]:
+                self.config["LR_SCHEDULER_PARAMS"]["decay"] = 0.0
+            else:
+                assert type(self.config["LR_SCHEDULER_PARAMS"]["decay"]) is float
+                assert 0.0 <= self.config["LR_SCHEDULER_PARAMS"]["decay"] < 1.0
 
 
 class PruneConfigValidator(ConfigValidator):

@@ -128,8 +128,8 @@ class QuantizableSqueezeExcitation(SqueezeExcitation):
     def __init__(self, **kwargs: bool) -> None:
         """Initialize."""
         super(QuantizableSqueezeExcitation, self).__init__(**kwargs)
-        self.hsig = QuantizableHSigmoid()
         self.mul = nn.quantized.FloatFunctional()
+        self.hsig = QuantizableHSigmoid()
 
     def _mul(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Multiply two tensors (elementwise)."""

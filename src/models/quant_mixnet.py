@@ -53,7 +53,7 @@ class QuantizableMixBlock(MixBlock):
 
         self.se = (
             QuantizableSqueezeExcitation(
-                in_channels=self.out_channels, se_ratio=self.se_ratio
+                in_channels=self.out_channels, se_ratio=self.se_ratio,
             )
             if self.has_se
             else Identity()

@@ -112,14 +112,15 @@ class RandAugmentation(Augmentation):
         """Initialize."""
         super(RandAugmentation, self).__init__(n_level)
         self.n_select = n_select
-        self.level = level
+        self.level = level if type(level) is int and 0 <= level < n_level else None
         self.transforms = transforms
 
     def __call__(self, img: Image) -> Image:
         """Run augmentations."""
         chosen_transforms = random.sample(self.transforms, k=self.n_select)
         for transf in chosen_transforms:
-            img = self._apply_augment(img, transf, self.level)
+            level = self.level if self.level else random.randint(0, self.n_level - 1)
+            img = self._apply_augment(img, transf, level)
         return img
 
 
