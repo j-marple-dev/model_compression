@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from torch.quantization import DeQuantStub, QuantStub
 
+from src.models.common_layers import ConvBNReLU
 from src.models.simplenet import SimpleNet
 
 
@@ -38,8 +39,9 @@ class QuantizableSimpleNet(SimpleNet):
         References:
             https://pytorch.org/docs/stable/quantization.html#torch-nn-intrinsic
         """
-        modules_to_fuse = [[f"conv{i+1}", f"bn{i+1}", f"relu{i+1}"] for i in range(4)]
-        torch.quantization.fuse_modules(self, modules_to_fuse, inplace=True)
+        for m in self.modules():
+            if type(m) is ConvBNReLU:
+                torch.quantization.fuse_modules(m, ["conv", "bn", "relu"], inplace=True)
 
 
 def get_model(**kwargs: bool) -> nn.Module:

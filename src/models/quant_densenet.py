@@ -5,14 +5,14 @@
 - Email: jwpark@jmarple.ai
 """
 
-import math
 from typing import Any
 
 import torch
 import torch.nn as nn
 from torch.quantization import DeQuantStub, QuantStub, fuse_modules
 
-from src.models.fixed_densenet import BasicBlock, Bottleneck, DenseNet, Transition
+from src.models.common_layers import ConvBNReLU
+from src.models.fixed_densenet import BasicBlock, Bottleneck, DenseNet
 
 
 class QuantizableBottleneck(Bottleneck):
@@ -25,22 +25,9 @@ class QuantizableBottleneck(Bottleneck):
         super(QuantizableBottleneck, self).__init__(inplanes, expansion, growthRate)
         self.cat = nn.quantized.FloatFunctional()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Foward."""
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu1(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu2(out)
-        out = self.cat.cat((x, out), dim=1)
-        return out
-
-    def fuse_model(self) -> None:
-        fuse_modules(
-            self, [["conv1", "bn1", "relu1"], ["conv2", "bn2", "relu2"]], inplace=True
-        )
+    def _cat(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Concat channels."""
+        return self.cat.cat((x, y), dim=1)
 
 
 class QuantizableBasicBlock(BasicBlock):
@@ -53,23 +40,9 @@ class QuantizableBasicBlock(BasicBlock):
         super(QuantizableBasicBlock, self).__init__(inplanes, expansion, growthRate)
         self.cat = nn.quantized.FloatFunctional()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward."""
-        out = self.conv(x)
-        out = self.bn(out)
-        out = self.relu(out)
-        out = self.cat.cat((x, out), dim=1)
-        return out
-
-    def fuse_model(self) -> None:
-        fuse_modules(self, ["conv", "bn", "relu"], inplace=True)
-
-
-class QuantizableTransition(Transition):
-    """Quantizable transition between blocks."""
-
-    def fuse_model(self) -> None:
-        fuse_modules(self, ["conv", "bn", "relu"], inplace=True)
+    def _cat(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Concat channels."""
+        return self.cat.cat((x, y), dim=1)
 
 
 class QuantizableDenseNet(DenseNet):
@@ -91,13 +64,6 @@ class QuantizableDenseNet(DenseNet):
         self.quant = QuantStub()
         self.dequant = DeQuantStub()
 
-    def _make_transition(self, compressionRate: int) -> nn.Module:
-        """Make a quantizable transition."""
-        inplanes = self.inplanes
-        outplanes = int(math.floor(self.inplanes // compressionRate))
-        self.inplanes = outplanes
-        return QuantizableTransition(inplanes, outplanes)
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward."""
         x = self.quant(x)
@@ -107,15 +73,9 @@ class QuantizableDenseNet(DenseNet):
 
     def fuse_model(self) -> None:
         """Fuse modules and create intrinsic opterators."""
-        fuse_modules(self, ["conv", "bn", "relu"], inplace=True)
-
         for m in self.modules():
-            if type(m) in {
-                QuantizableBasicBlock,
-                QuantizableBottleneck,
-                QuantizableTransition,
-            }:
-                m.fuse_model()
+            if type(m) is ConvBNReLU:
+                fuse_modules(m, ["conv", "bn", "relu"], inplace=True)
 
 
 def get_model(**kwargs: Any) -> nn.Module:

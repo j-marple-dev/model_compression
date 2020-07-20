@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.models.common_layers import ConvBNReLU
+
 
 class SimpleNet(nn.Module):
     """SimpleNet architecture."""
@@ -15,35 +17,23 @@ class SimpleNet(nn.Module):
     def __init__(self, num_classes: int) -> None:
         """Initialize."""
         super(SimpleNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 3)
-        self.bn1 = nn.BatchNorm2d(6)
-        self.relu1 = nn.ReLU(inplace=True)
-
-        self.conv2 = nn.Conv2d(6, 6, 3)
-        self.bn2 = nn.BatchNorm2d(6)
-        self.relu2 = nn.ReLU(inplace=True)
-
-        self.conv3 = nn.Conv2d(6, 16, 3)
-        self.bn3 = nn.BatchNorm2d(16)
-        self.relu3 = nn.ReLU(inplace=True)
-
-        self.conv4 = nn.Conv2d(16, 16, 3)
-        self.bn4 = nn.BatchNorm2d(16)
-        self.relu4 = nn.ReLU(inplace=True)
-
+        self.conv1 = ConvBNReLU(3, 6, kernel_size=3)
+        self.conv2 = ConvBNReLU(6, 6, kernel_size=3)
+        self.conv3 = ConvBNReLU(6, 16, kernel_size=3)
+        self.conv4 = ConvBNReLU(16, 16, kernel_size=3)
         self.fc1 = nn.Linear(16 * 5 * 5, num_classes)  # 5x5 image dimension
 
     def _forward_impl(self, x: torch.Tensor):
         """Actual forward procedures."""
-        x = self.relu1(self.bn1(self.conv1(x)))
-        x = self.relu2(self.bn2(self.conv2(x)))
-        x = F.max_pool2d(x, (2, 2))
-        x = self.relu3(self.bn3(self.conv3(x)))
-        x = self.relu4(self.bn4(self.conv4(x)))
-        x = F.max_pool2d(x, 2)
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        return x
+        out = self.conv1(x)
+        out = self.conv2(out)
+        out = F.max_pool2d(out, (2, 2))
+        out = self.conv3(out)
+        out = self.conv4(out)
+        out = F.max_pool2d(out, 3)
+        out = torch.flatten(out, 1)
+        out = self.fc1(out)
+        return out
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward."""

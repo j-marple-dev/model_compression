@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
-"""DenseNet Model.
+"""Fixed DenseNet Model.
 
-- Copied and modified from: https://github.com/bearpaw/pytorch-classification
+All blocks consist of ConvBNReLU for quantization.
+
+- Author: Curt-Park
+- Email: jwpark@jmarple.ai
 """
 
 import math
@@ -9,6 +12,8 @@ from typing import Any
 
 import torch
 import torch.nn as nn
+
+from src.models.common_layers import ConvBNReLU
 
 
 class Bottleneck(nn.Module):
@@ -20,27 +25,18 @@ class Bottleneck(nn.Module):
         """Initialize."""
         super(Bottleneck, self).__init__()
         planes = expansion * growthRate
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.relu1 = nn.ReLU(inplace=True)
+        self.conv1 = ConvBNReLU(inplanes, planes, kernel_size=1)
+        self.conv2 = ConvBNReLU(planes, growthRate, kernel_size=3)
 
-        self.conv2 = nn.Conv2d(planes, growthRate, kernel_size=3, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(growthRate)
-        self.relu2 = nn.ReLU(inplace=True)
+    def _cat(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Concat channels."""
+        return torch.cat((x, y), 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward."""
         out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu1(out)
-
         out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu2(out)
-
-        out = torch.cat((x, out), 1)
-
-        return out
+        return self._cat(x, out)
 
 
 class BasicBlock(nn.Module):
@@ -51,20 +47,16 @@ class BasicBlock(nn.Module):
     ) -> None:
         """Initialize."""
         super(BasicBlock, self).__init__()
-        self.conv = nn.Conv2d(
-            inplanes, growthRate, kernel_size=3, padding=1, bias=False
-        )
-        self.bn = nn.BatchNorm2d(growthRate)
-        self.relu = nn.ReLU(inplace=True)
+        self.conv = ConvBNReLU(inplanes, growthRate, kernel_size=3)
+
+    def _cat(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Concat channels."""
+        return torch.cat((x, y), 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward."""
         out = self.conv(x)
-        out = self.bn(out)
-        out = self.relu(out)
-        out = torch.cat((x, out), 1)
-
-        return out
+        return self._cat(x, out)
 
 
 class Transition(nn.Module):
@@ -73,16 +65,12 @@ class Transition(nn.Module):
     def __init__(self, inplanes: int, outplanes: int) -> None:
         """Initialize."""
         super(Transition, self).__init__()
-        self.conv = nn.Conv2d(inplanes, outplanes, kernel_size=1, bias=False)
-        self.bn = nn.BatchNorm2d(outplanes)
-        self.relu = nn.ReLU(inplace=True)
+        self.conv = ConvBNReLU(inplanes, outplanes, kernel_size=1)
         self.avg_pool = nn.AvgPool2d(2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward."""
         out = self.conv(x)
-        out = self.bn(out)
-        out = self.relu(out)
         out = self.avg_pool(out)
         return out
 
@@ -108,9 +96,7 @@ class DenseNet(nn.Module):
 
         # self.inplanes is a global variable used across multiple
         self.inplanes = growthRate * 2
-        self.conv = nn.Conv2d(3, self.inplanes, kernel_size=3, padding=1, bias=False)
-        self.bn = nn.BatchNorm2d(self.inplanes)
-        self.relu = nn.ReLU(inplace=True)
+        self.stem = ConvBNReLU(3, self.inplanes, kernel_size=3)
 
         self.dense1 = self._make_denseblock(block, n)
         self.trans1 = self._make_transition(compressionRate)
@@ -149,9 +135,7 @@ class DenseNet(nn.Module):
 
     def _forward_impl(self, x: torch.Tensor) -> torch.Tensor:
         """Actual forward procedures."""
-        x = self.conv(x)
-        x = self.bn(x)
-        x = self.relu(x)
+        x = self.stem(x)
 
         x = self.trans1(self.dense1(x))
         x = self.trans2(self.dense2(x))
