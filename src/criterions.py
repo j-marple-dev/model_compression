@@ -186,20 +186,20 @@ class CrossEntropy(Criterion):
 
         # get smooth labels
         if self.label_smoothing > 0.0:
-            target = self.add_label_smoothing(pred, target)
+            target = self.add_label_smoothing(target)
 
         return torch.mean(torch.sum(-target * pred, dim=1))
 
     @torch.no_grad()
-    def add_label_smoothing(
-        self, pred: torch.Tensor, target: torch.Tensor
-    ) -> torch.Tensor:
+    def add_label_smoothing(self, target: torch.Tensor) -> torch.Tensor:
         """Add smoothness in labels."""
-        target = torch.max(target, dim=1)[1]
-        confidence = 1 - self.label_smoothing
-        smooth_target = torch.zeros_like(pred).to(self.device)
-        smooth_target.fill_(self.label_smoothing / (self.num_classes - 1))
-        smooth_target.scatter_(1, target.data.unsqueeze(1), confidence)
+        nonzero_idxs = target != 0.0
+        nonzero_cnt = nonzero_idxs.sum(dim=1, keepdim=True).float()
+
+        target *= 1 - self.label_smoothing
+        smooth_target = torch.ones_like(target).to(self.device)
+        smooth_target *= self.label_smoothing / (self.num_classes - nonzero_cnt)
+        smooth_target[nonzero_idxs] = target[nonzero_idxs]
         return smooth_target
 
 
