@@ -15,6 +15,7 @@ import torch.nn.utils.prune as prune
 
 from src.format import percent_format
 from src.models import utils as model_utils
+from src.plotter import Plotter
 from src.runners.runner import Runner
 from src.runners.trainer import Trainer
 from src.utils import get_logger
@@ -51,6 +52,7 @@ class Pruner(Runner):
             wandb_init_params=wandb_init_params,
         )
         self.model = self.trainer.model
+        self.plotter = Plotter(self.wandb_log)
 
         self.params_all = model_utils.get_params(
             self.model,
@@ -142,8 +144,9 @@ class Pruner(Runner):
             )
 
             # directory name for checkpoints
-            checkpt_dir = f"{prune_iter}_{(mask_total_sparsity):.2f}_"
-            f"{self.dir_postfix}".replace(".", "_")
+            checkpt_dir = (
+                f"{prune_iter}_{(mask_total_sparsity):.2f}_" f"{self.dir_postfix}"
+            ).replace(".", "_")
             logger.info(
                 "Initialized Pruning Settings: "
                 f"[{prune_iter} | {self.config['N_PRUNING_ITER']-1}]"
@@ -155,6 +158,9 @@ class Pruner(Runner):
 
         # reset trainer
         self.trainer.reset(checkpt_dir)
+
+        # plot result
+        self.plotter.plot(self.model, self.trainer.get_model_save_dir())
 
         # sparsity info for logging
         sparsity_info: List[Tuple[str, float, Callable]] = []

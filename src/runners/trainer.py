@@ -118,9 +118,13 @@ class Trainer(Runner):
         self.best_acc = 0.0
 
         # best model path
-        self.best_model_path = os.path.join(self.dir_prefix, checkpt_dir)
-        if not os.path.exists(self.best_model_path):
-            os.mkdir(self.best_model_path)
+        self.model_save_dir = os.path.join(self.dir_prefix, checkpt_dir)
+        if not os.path.exists(self.model_save_dir):
+            os.mkdir(self.model_save_dir)
+
+    def get_model_save_dir(self) -> str:
+        """Get model save directory."""
+        return self.model_save_dir
 
     def resume(self) -> int:
         """Setting to resume the training."""
@@ -161,7 +165,7 @@ class Trainer(Runner):
         if test_acc["model_acc"] > self.best_acc:
             self.best_acc = test_acc["model_acc"]
             filename = str(epoch) + "_" + f"{self.best_acc:.2f}".replace(".", "_")
-            self.save_params(self.best_model_path, filename, epoch, self.best_acc)
+            self.save_params(self.model_save_dir, filename, epoch, self.best_acc)
 
         # log
         if not extra_log_info:
