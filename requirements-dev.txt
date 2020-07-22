@@ -2,7 +2,7 @@ pre-commit
 
 # formatting
 black
-isort ==  4.3.21
+isort == 5.1.4
 
 # testing
 pylint == 2.5.2
