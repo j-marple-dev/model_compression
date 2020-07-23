@@ -8,7 +8,7 @@ All blocks consist of ConvBNReLU for quantization.
 """
 
 import math
-from typing import Any
+from typing import Any, Dict, List, Tuple
 
 import torch
 import torch.nn as nn
@@ -115,6 +115,76 @@ class DenseNet(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
+
+        self.last_conv_shape = 1
+
+        # name : ([in], [out])
+        # https://github.com/python/mypy/issues/5751
+        # Dict
+        self.conv_connection: Dict[str, Tuple[List[str], List[str]]] = dict(
+            {"stem.conv": ([], ["stem.bn"])}
+        )
+
+        # hard coded connection pair
+        # [(base, in_channel)]
+        name_setup = [
+            ("dense1.", "stem.bn"),
+            ("dense2.", "trans1.conv.bn"),
+            ("dense3.", "trans2.conv.bn"),
+        ]
+        """
+        in_layer1: consist of concatenated layer from earlier layer.
+        ex):
+        dense2.8.conv1 (['trans1.bn', 'dense2.0.bn2', 'dense2.1.bn2',
+                         'dense2.2.bn2', 'dense2.3.bn2', 'dense2.4.bn2',
+                         'dense2.5.bn2', 'dense2.6.bn2', 'dense2.7.bn2'],
+                         ['dense2.8.bn1'])
+        dense2.8.conv2 (['dense2.8.bn1'], ['dense2.8.bn2'])
+        """
+
+        # dense layer
+        for (base, in_name) in name_setup:
+            for f_i in range(16):
+                layer1_name = base + str(f_i) + ".conv1.conv"
+                layer2_name = base + str(f_i) + ".conv2.conv"
+
+                # layer_1
+                in_layers1 = [in_name] + [
+                    base + str(idx) + ".conv2.bn" for idx in range(f_i)
+                ]
+                out_layers1 = [base + str(f_i) + ".conv1.bn"]
+                in_layers2 = out_layers1
+                out_layers2 = [base + str(f_i) + ".conv2.bn"]
+                self.conv_connection.update(
+                    {
+                        layer1_name: (in_layers1, out_layers1),
+                        layer2_name: (in_layers2, out_layers2),
+                    }
+                )
+
+        # trans layer
+        for idx, in_layer in enumerate(["stem.bn", "trans1.conv.bn"], start=1):
+            layer_name = "trans" + str(idx) + ".conv.conv"
+            in_layers = [in_layer] + [
+                "dense" + str(idx) + "." + str(f_i) + "conv2.bn" for f_i in range(16)
+            ]
+            out_layers = ["trans" + str(idx) + ".conv.bn"]
+            self.conv_connection.update({layer_name: (in_layers, out_layers)})
+
+        # name : [in]
+        self.fc_connection: Dict[str, List[str]] = {
+            "fc": ["trans2.conv.bn"]
+            + [base + str(f_i) + ".conv2.bn" for f_i in range(16)]
+        }
+
+        # for debug
+        """
+        print('CHECK')
+        for k, v in self.conv_connection.items():
+            print(k, v)
+        for k, v in self.fc_connection.items():
+            print(k, v)
+        """
 
     def _make_denseblock(self, block: "type", blocks: int) -> nn.Module:
         """Make a dense block."""

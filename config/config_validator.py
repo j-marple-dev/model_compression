@@ -273,9 +273,7 @@ class PruneConfigValidator(ConfigValidator):
             "TRAIN_CONFIG",
             "N_PRUNING_ITER",
             "PRUNE_METHOD",
-            "PRUNE_AMOUNT",
-            "STORE_PARAM_BEFORE",
-            "PRUNE_START_FROM",
+            "PRUNE_PARAMS",
         }
 
     def check(self) -> None:
@@ -308,25 +306,46 @@ class PruneConfigValidator(ConfigValidator):
         assert 0 < self.config["N_PRUNING_ITER"]
         assert isinstance(self.config["N_PRUNING_ITER"], int)
 
-        assert 0 <= self.config["STORE_PARAM_BEFORE"] <= self.config["EPOCHS"]
-        assert isinstance(self.config["STORE_PARAM_BEFORE"], int)
-
-        assert 0 <= self.config["PRUNE_START_FROM"] <= self.config["EPOCHS"]
-        assert isinstance(self.config["PRUNE_START_FROM"], int)
-
     def check_prune_methods(self) -> None:
         """Check prune methods config validity."""
         # get criterion class lists
         pruner_names = get_class_names_in_files(
             "src" + os.path.sep + "runners" + os.path.sep + "pruner.py"
         )
+        # Remove abstract class name
         pruner_names.remove("Pruner")
+        pruner_names.remove("LayerwisePruning")
 
         # Check pruner method in config exists
         assert self.config["PRUNE_METHOD"] in pruner_names
 
-        assert 0.0 < self.config["PRUNE_AMOUNT"] < 1.0
-        assert isinstance(self.config["PRUNE_AMOUNT"], float)
+        # Common config
+        assert 0.0 < self.config["PRUNE_PARAMS"]["PRUNE_AMOUNT"] < 1.0
+        assert isinstance(self.config["PRUNE_PARAMS"]["PRUNE_AMOUNT"], float)
+
+        assert (
+            0
+            <= self.config["PRUNE_PARAMS"]["STORE_PARAM_BEFORE"]
+            <= self.config["EPOCHS"]
+        )
+        assert isinstance(self.config["PRUNE_PARAMS"]["STORE_PARAM_BEFORE"], int)
+
+        assert (
+            0
+            <= self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"]
+            <= self.config["EPOCHS"]
+        )
+        assert isinstance(self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"], int)
+        # config
+        if (
+            self.config["PRUNE_METHOD"] == "Magnitude"
+            or self.config["PRUNE_METHOD"] == "SlimMagnitude"
+        ):
+            assert "NORM" in self.config["PRUNE_PARAMS"]
+            # https://pytorch.org/docs/master/generated/torch.norm.html
+            assert isinstance(self.config["PRUNE_PARAMS"]["NORM"], int) or self.config[
+                "PRUNE_PARAMS"
+            ]["NORM"] in ("fro", "nuc")
 
 
 class QuantizeConfigValidator(TrainConfigValidator):

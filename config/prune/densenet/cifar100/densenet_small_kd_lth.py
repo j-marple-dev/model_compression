@@ -13,7 +13,5 @@ config = {
     "N_PRUNING_ITER": 15,
     "EPOCHS": 300,
     "PRUNE_METHOD": "LotteryTicketHypothesis",
-    "PRUNE_AMOUNT": 0.2,
-    "STORE_PARAM_BEFORE": 10,
-    "PRUNE_START_FROM": 10,
+    "PRUNE_PARAMS": dict(PRUNE_AMOUNT=0.2, STORE_PARAM_BEFORE=300, PRUNE_START_FROM=0),
 }

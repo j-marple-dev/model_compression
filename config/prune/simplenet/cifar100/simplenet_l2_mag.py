@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Configurations for slimming simple network.
+"""Configurations for Magnitude layerwise pruning.
 
-- Author: Curt-Park
-- Email: jwpark@jmarple.ai
+- Author: Junghoon Kim
+- Email: jhkim@jmarple.ai
 """
 
 from config.train.simplenet.cifar100 import simplenet
@@ -12,7 +12,9 @@ train_config.update({"REGULARIZER": "BnWeight", "REGULARIZER_PARAMS": dict(coeff
 config = {
     "TRAIN_CONFIG": train_config,
     "N_PRUNING_ITER": 5,
-    "EPOCHS": 20,
-    "PRUNE_METHOD": "NetworkSlimming",
-    "PRUNE_PARAMS": dict(PRUNE_AMOUNT=0.2, STORE_PARAM_BEFORE=20, PRUNE_START_FROM=0),
+    "EPOCHS": 2,
+    "PRUNE_METHOD": "SlimMagnitude",
+    "PRUNE_PARAMS": dict(
+        PRUNE_AMOUNT=0.2, NORM=2, STORE_PARAM_BEFORE=2, PRUNE_START_FROM=0
+    ),
 }

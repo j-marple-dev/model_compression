@@ -6,8 +6,10 @@
 """
 
 import abc
+import copy
+import itertools
 import os
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, cast
 
 import torch
 import torch.nn as nn
@@ -41,6 +43,7 @@ class Pruner(Runner):
         self.dir_postfix = "pruned"
         self.init_params_name = "init_params"
         self.init_params_path = ""
+        self.device = device
 
         # create an initial model
         self.trainer = Trainer(
@@ -54,7 +57,7 @@ class Pruner(Runner):
         self.model = self.trainer.model
         self.plotter = Plotter(self.wandb_log)
 
-        self.params_all = model_utils.get_params(
+        self.model_params = model_utils.get_params(
             self.model,
             (
                 (nn.Conv2d, "weight"),
@@ -68,9 +71,8 @@ class Pruner(Runner):
         self.params_to_prune = self.get_params_to_prune()
 
         # to calculate sparsity properly
-        prune.global_unstructured(
-            self.params_all, pruning_method=prune.L1Unstructured, amount=0.0,
-        )
+        model_utils.dummy_pruning(self.model_params)
+        model_utils.dummy_pruning(self.params_to_prune)
 
     @abc.abstractmethod
     def prune_params(self, prune_iter: int) -> None:
@@ -110,11 +112,11 @@ class Pruner(Runner):
             logger.info("Initialized Pretraining Settings")
 
             # store initial weights
-            if not resumed and self.config["STORE_PARAM_BEFORE"] == 0:
+            if not resumed and self.config["PRUNE_PARAMS"]["STORE_PARAM_BEFORE"] == 0:
                 self.save_init_params()
         # pruning
         else:
-            start_epoch = self.config["PRUNE_START_FROM"]
+            start_epoch = self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"]
 
             if not resumed:
                 self.prune_params(prune_iter)
@@ -122,25 +124,25 @@ class Pruner(Runner):
             self.trainer.warmup_one_iter()
 
             # sparsities
-            zero_total_sparsity = model_utils.sparsity(self.params_all)
+            zero_total_sparsity = model_utils.sparsity(self.model_params)
             zero_conv_sparsity = model_utils.sparsity(
-                self.params_all, module_types=(nn.Conv2d,)
+                self.model_params, module_types=(nn.Conv2d,)
             )
             zero_fc_sparsity = model_utils.sparsity(
-                self.params_all, module_types=(nn.Linear,)
+                self.model_params, module_types=(nn.Linear,)
             )
             zero_bn_sparsity = model_utils.sparsity(
-                self.params_all, module_types=(nn.BatchNorm2d,)
+                self.model_params, module_types=(nn.BatchNorm2d,)
             )
-            mask_total_sparsity = model_utils.mask_sparsity(self.params_all)
+            mask_total_sparsity = model_utils.mask_sparsity(self.model_params)
             mask_conv_sparsity = model_utils.mask_sparsity(
-                self.params_all, module_types=(nn.Conv2d,)
+                self.model_params, module_types=(nn.Conv2d,)
             )
             mask_fc_sparsity = model_utils.mask_sparsity(
-                self.params_all, module_types=(nn.Linear,)
+                self.model_params, module_types=(nn.Linear,)
             )
             mask_bn_sparsity = model_utils.mask_sparsity(
-                self.params_all, module_types=(nn.BatchNorm2d,)
+                self.model_params, module_types=(nn.BatchNorm2d,)
             )
 
             # directory name for checkpoints
@@ -178,7 +180,7 @@ class Pruner(Runner):
         sparsity_info.append(("mask_sparsity/bn", mask_bn_sparsity, percent_format))
         sparsity_info.append(
             (
-                "mask_sparsity/conv_target",
+                "mask_sparsity/target",
                 self.get_target_sparsity(prune_iter) * 100.0,
                 percent_format,
             )
@@ -220,7 +222,7 @@ class Pruner(Runner):
                 self.trainer.run_one_epoch(epoch, sparsity_info)
 
                 # store weights with warmup
-                if self.config["STORE_PARAM_BEFORE"] - 1 == epoch:
+                if self.config["PRUNE_PARAMS"]["STORE_PARAM_BEFORE"] - 1 == epoch:
                     self.save_init_params()
 
             if prune_iter == -1:
@@ -234,7 +236,9 @@ class Pruner(Runner):
         """Get target sparsity for current prune epoch."""
         target_density = 1.0
         for _ in range(prune_iter + 1):
-            target_density = target_density * (1 - self.config["PRUNE_AMOUNT"])
+            target_density = target_density * (
+                1 - self.config["PRUNE_PARAMS"]["PRUNE_AMOUNT"]
+            )
         return 1 - target_density
 
     def save_init_params(self) -> None:
@@ -242,7 +246,7 @@ class Pruner(Runner):
         self.trainer.save_params(
             self.dir_prefix,
             self.init_params_name,
-            self.config["STORE_PARAM_BEFORE"] - 1,
+            self.config["PRUNE_PARAMS"]["STORE_PARAM_BEFORE"] - 1,
             record_path=False,
         )
         logger.info("Stored initial parameters")
@@ -264,6 +268,11 @@ class Pruner(Runner):
                 last_iter = int(checkpt_dir.split("_", 1)[0])
 
         return last_iter
+
+    def early_stop(self) -> None:
+        """Early stop."""
+        logger.info("Prune cannot be done. Early stop")
+        raise SystemExit
 
 
 class LotteryTicketHypothesis(Pruner):
@@ -303,7 +312,7 @@ class LotteryTicketHypothesis(Pruner):
         prune.global_unstructured(
             self.params_to_prune,
             pruning_method=prune.L1Unstructured,
-            amount=self.config["PRUNE_AMOUNT"],
+            amount=self.config["PRUNE_PARAMS"]["PRUNE_AMOUNT"],
         )
 
 
@@ -331,12 +340,185 @@ class LotteryTicketHypothesisFC(LotteryTicketHypothesis):
         super(LotteryTicketHypothesisFC, self).__init__(
             config, dir_prefix, wandb_log, wandb_init_params, device
         )
-        self.params_to_prune = model_utils.get_params(
-            self.model, ((nn.Linear, "weight"),)
+
+
+class LayerwisePruning(Pruner):
+    """Layerwise pruning."""
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        dir_prefix: str,
+        wandb_log: bool,
+        wandb_init_params: Dict[str, Any],
+        device: torch.device,
+    ) -> None:
+        """Initialize."""
+        # Channel info and corresponding conv pair
+        # ex) slim: bn - conv, L2: weight norm - conv
+        self._channel_conv_bn: Optional[
+            Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]
+        ] = None
+        super(LayerwisePruning, self).__init__(
+            config, dir_prefix, wandb_log, wandb_init_params, device
         )
 
+    @property
+    def channel_conv_bn(
+        self,
+    ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
+        """Create channel_conv when it is needed."""
+        if not self._channel_conv_bn:
+            self._channel_conv_bn = self.get_channel_conv_bn()
+        return self._channel_conv_bn
 
-class NetworkSlimming(Pruner):
+    @abc.abstractmethod
+    def get_channel_conv_bn(
+        self,
+    ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
+        """Get channel - conv pair tuple."""
+        raise NotImplementedError
+
+    def prune_params(self, prune_iter: int) -> None:
+        """Apply prune."""
+        self.update_channel_data()
+        params_to_prune = self.drop_overly_pruned(prune_iter)
+        self.prune_target_ratio(prune_iter, params_to_prune)
+
+    def prune_target_ratio(
+        self, prune_iter: int, params_to_prune: Tuple[Tuple[nn.Module, str], ...]
+    ) -> None:
+        """Prune iteratively to reach up to target sparsity."""
+        target_sparsity = self.get_target_sparsity(prune_iter)
+        sparsity = model_utils.mask_sparsity(self.model_params) / 100
+        prev_sparsity = sparsity
+        base_amount = amount = 0.005
+
+        # Give little margin to target_sparsity
+        # target_sparsity never goes less than amount when used as intended
+        while sparsity <= target_sparsity - amount:
+            # drop overly pruned to prevent layer to die
+            prune.global_unstructured(
+                params_to_prune, pruning_method=prune.L1Unstructured, amount=amount
+            )
+            self.update_masks()
+            prev_sparsity = sparsity
+            sparsity = model_utils.mask_sparsity(self.model_params) / 100
+            if sparsity == prev_sparsity:
+                amount += base_amount
+        self.update_masks()
+
+    def update_masks(self) -> None:
+        """Copy channel to bias masks and conv masks."""
+        for channel, conv, bn in self.channel_conv_bn:
+            # Copy channel weight_mask to bias_mask
+            ch_buffers = {name: buf for name, buf in channel.named_buffers()}
+            ch_mask = ch_buffers["weight_mask"].detach().clone()
+            if "bias_mask" in ch_buffers:
+                ch_buffers["bias_mask"].set_(ch_mask)
+
+            # Copy channel weight_mask to bn weight_mask, bias_mask
+            bn_buffers = {name: buf for name, buf in bn.named_buffers()}
+            bn_buffers["weight_mask"].set_(ch_mask)
+            bn_buffers["bias_mask"].set_(ch_mask)
+
+            conv_buffers = {name: buf for name, buf in conv.named_buffers()}
+            if "bias_mask" in conv_buffers:
+                conv_buffers["bias_mask"].set_(ch_mask)
+
+            # conv2d - batchnorm - activation (CBA)
+            # bn_mask: [out], conv: [out, in, h, w]
+            [o, i, h, w] = conv_buffers["weight_mask"].shape
+
+            # check shape -> if its not shaped as CBA
+            if ch_mask.shape[0] != o:
+                continue
+            # ch_mask: [out, 1, 1]
+            ch_mask = ch_mask.view(o, 1, 1)
+            # ch_mask: [out, h, w]
+            ch_mask = ch_mask.repeat(1, h, w)
+            # ch_mask: [out, 1, h, w]
+            ch_mask = ch_mask.unsqueeze(1)
+            # ch_mask: [out, in, h, w]
+            ch_mask = ch_mask.repeat(1, i, 1, 1)
+
+            conv_buffers["weight_mask"].set_(ch_mask)
+
+        # Update fc layer mask
+        fc_modules: Dict[str, nn.Linear] = dict()
+        bn_modules: Dict[str, nn.BatchNorm2d] = dict()
+        for k, v in self.model.named_modules():
+            if type(v) is nn.Linear:
+                fc_modules.update({k: v})
+            elif type(v) is nn.BatchNorm2d:
+                bn_modules.update({k: v})
+
+        for name, fc in fc_modules.items():
+            if name not in self.model.fc_connection:
+                continue
+            bn_connections = []
+            for bn_name in self.model.fc_connection[name]:
+                bn = bn_modules[bn_name]
+                bn_buffers = {name: buf for name, buf in bn.named_buffers()}
+                bn_connections.append(bn_buffers["weight_mask"])
+            if bn_connections is None:
+                continue
+            fc_mask = torch.cat(bn_connections)
+            fc_mask = torch.flatten(
+                fc_mask.view(-1, 1, 1).repeat(
+                    1, self.model.last_conv_shape, self.model.last_conv_shape
+                )
+            )
+            fc_buffers = {name: buf for name, buf in fc.named_buffers()}
+            o, i = fc_buffers["weight_mask"].size()
+            fc_mask = fc_mask.repeat(o).reshape(o, i)
+            fc_buffers["weight_mask"].set_(fc_mask)
+
+    def drop_overly_pruned(self, prune_iter: int) -> Tuple[Tuple[nn.Module, str], ...]:
+        """Exclude excessively pruned params to preserve flow."""
+        # exclude param(layer)s to prevent 100% sparsity
+        exclude_param_index: Set[int] = set()
+        while len(exclude_param_index) != len(self.params_to_prune):
+            pruner_cpy = copy.deepcopy(self)
+            params_to_prune = pruner_cpy.update_params_to_prune(exclude_param_index)
+
+            # try pruning
+            pruner_cpy.prune_target_ratio(prune_iter, params_to_prune)
+            if pruner_cpy.new_allzero_params(exclude_param_index):
+                continue
+            else:
+                break
+
+        # nothing to prune -> early stop
+        if len(exclude_param_index) == len(self.params_to_prune):
+            self.early_stop()
+        # safely prunes
+        return self.update_params_to_prune(exclude_param_index)
+
+    def new_allzero_params(self, exclude_params: Set[int]) -> bool:
+        """Check if there is params all zeroed and put into exclude params,
+        return whether there is zeored params."""
+        exclude_len = len(exclude_params)
+        for i, (param, _) in enumerate(self.params_to_prune):
+            param.weight_mask = cast(torch.Tensor, param.weight_mask)
+            count_zero = int((param.weight_mask == 0).sum().detach())
+            num_params = param.weight_mask.nelement()
+            if count_zero == num_params:
+                exclude_params.add(i)
+        return True if exclude_len != len(exclude_params) else False
+
+    def update_params_to_prune(
+        self, exclude_param_index: Set[int]
+    ) -> Tuple[Tuple[nn.Module, str], ...]:
+        """Remove params_to_prune tuple by checking exclude_param_index."""
+        excluded_params_prune = []
+        for tuple_index, (layer, type_) in enumerate(self.params_to_prune):
+            if tuple_index not in exclude_param_index:
+                excluded_params_prune.append((layer, type_))
+        return tuple(excluded_params_prune)
+
+
+class NetworkSlimming(LayerwisePruning):
     """Network slimming(slim) on bn 2d.
 
     Reference:
@@ -353,28 +535,29 @@ class NetworkSlimming(Pruner):
         device: torch.device,
     ) -> None:
         """Initialize."""
-        self._bn_to_conv: Dict[nn.BatchNorm2d, nn.Conv2d] = dict()
         super(NetworkSlimming, self).__init__(
             config, dir_prefix, wandb_log, wandb_init_params, device
         )
 
-    @property
-    def bn_to_conv(self) -> Dict[nn.BatchNorm2d, nn.Conv2d]:
-        """Create bn_to_conv when it is needed."""
-        if not self._bn_to_conv:
-            self._bn_to_conv = self.get_bn_to_conv()
-        return self._bn_to_conv
+    def get_channel_conv_bn(
+        self,
+    ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
+        """Get channel - conv - bn tuple.
 
-    def get_bn_to_conv(self) -> Dict[nn.BatchNorm2d, nn.Conv2d]:
-        """Get a dictionary key: bacthnorm2d, val: conv2d."""
+        Note:
+            Channel contains a data for prune.
+            For example, frobenius norm in case of L2 magnitude,
+                         bn weight for network slimming.
+            In case of network slimming, channel is simply batchnorm.
+        """
         layers = [
-            v for v in self.model.modules() if type(v) in {nn.Conv2d, nn.BatchNorm2d}
+            v for v in self.model.modules() if type(v) in (nn.Conv2d, nn.BatchNorm2d)
         ]
-        bn_to_conv = dict()
+        channel_conv_bn = []
         for i in range(1, len(layers)):
             if type(layers[i - 1]) is nn.Conv2d and type(layers[i]) is nn.BatchNorm2d:
-                bn_to_conv[layers[i]] = layers[i - 1]
-        return bn_to_conv
+                channel_conv_bn.append((layers[i], layers[i - 1], layers[i]))
+        return tuple(channel_conv_bn)
 
     def get_params_to_prune(self) -> Tuple[Tuple[nn.Module, str], ...]:
         """Get parameters to prune."""
@@ -385,99 +568,130 @@ class NetworkSlimming(Pruner):
         return tuple(
             (module, name)
             for (module, name) in all_bn_weights
-            if module in self.bn_to_conv
+            if module in itertools.chain(*self.channel_conv_bn)
         )
 
-    def prune_params(self, prune_iter: int) -> None:
-        """Apply prune."""
-        target_sparsity = self.get_target_sparsity(prune_iter)
-        sparsity = model_utils.mask_sparsity(self.params_all, (nn.Conv2d,)) / 100
-        prev_sparsity = sparsity
-        base_amount = amount = 0.001
+    @torch.no_grad()
+    def update_channel_data(self) -> None:
+        """Update channel info into channel data for prune."""
+        for channel, _, bn in self.channel_conv_bn:
+            # get norm
+            w = copy.deepcopy(bn.weight)
+            channel.weight_orig.data = w.abs()
+            # get sample input for dummpy forward
+            dummy_data = torch.zeros_like(channel.weight_orig.data).view(1, -1, 1, 1)
+            channel.eval()
+            channel(dummy_data)
 
-        params_to_prune = drop_overly_pruned(self.params_to_prune)
-        # Give little margin to target_sparsity
-        # target_sparsity never goes less than amount when used as intended
-        while sparsity <= target_sparsity - amount:
-            prune.global_unstructured(
-                params_to_prune, pruning_method=prune.L1Unstructured, amount=amount,
-            )
-            self.update_masks()
-            prev_sparsity = sparsity
-            sparsity = model_utils.mask_sparsity(self.params_all, (nn.Conv2d,)) / 100
-            if sparsity == prev_sparsity:
-                amount += base_amount
 
-        # DEBUG: Check all parameters to be pruned
-        # TODO: Will be deprecated after it shows stable performance
-        # t = nn.utils.parameters_to_vector([getattr(*p) for p in params_to_prune_constrained])
-        # print('t', t)
-        self.update_masks()
+class ChannelInfo(nn.Module):
+    """Module contains channel info for pruning."""
 
-    def update_masks(self) -> None:
-        """Copy bn weight masks to bias masks and conv masks"""
-        for bn, conv in self.bn_to_conv.items():
-            # Copy batchnorm weight_mask to bias_mask
-            bn_buffers = {name: buf for name, buf in bn.named_buffers()}
-            bn_mask = bn_buffers["weight_mask"].detach().clone()
-            bn_buffers["bias_mask"].set_(bn_mask)
+    def __init__(self, out_channels: int) -> None:
+        super(ChannelInfo, self).__init__()
+        self.weight = nn.Parameter(torch.zeros(out_channels, requires_grad=False))
+        self.bias = nn.Parameter(torch.zeros(out_channels, requires_grad=False))
 
-            conv_buffers = {name: buf for name, buf in conv.named_buffers()}
-            if "bias_mask" in conv_buffers:
-                conv_buffers["bias_mask"].set_(bn_mask)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x
 
-            # conv2d - batchnorm - activation (CBA)
-            # bn_mask: [out], conv: [out, in, h, w]
-            [o, i, h, w] = conv_buffers["weight_mask"].shape
 
-            # check shape -> if its not shaped as CBA
-            if bn_mask.shape[0] != o:
-                continue
-            # bn_mask: [out, 1, 1]
-            bn_mask = bn_mask.view(o, 1, 1)
-            # bn_mask: [out, h, w]
-            bn_mask = bn_mask.repeat(1, h, w)
-            # bn_mask: [out, 1, h, w]
-            bn_mask = bn_mask.unsqueeze(1)
-            # bn_mask: [out, in, h, w]
-            bn_mask = bn_mask.repeat(1, i, 1, 1)
+class Magnitude(LayerwisePruning):
+    """Magnitude based layerwise pruning.
 
-            conv_buffers["weight_mask"].set_(bn_mask)
+       Set NORM in PRUNE_PARAMS, for type of norm.
+       Possibly all types of norm that torch.norm supports.
+    """
 
-        # DEBUG: Check mask information
-        # TODO: Will be deprecated after it shows stable performance
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        dir_prefix: str,
+        wandb_log: bool,
+        wandb_init_params: Dict[str, Any],
+        device: torch.device,
+    ) -> None:
+        """Initialize."""
+        super(Magnitude, self).__init__(
+            config, dir_prefix, wandb_log, wandb_init_params, device
+        )
+
+    def get_channel_conv_bn(
+        self,
+    ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
+        """Get channel - conv - bn tuple.
+
+            Note:
+                Channel contains a data for prune.
+                For example, frobeinus norm in case of L2 magnitude,
+                             bn weight for network slimming.
         """
-        layer_dict = {k: v for k, v in self.model.named_modules()}
-        bn_zero = bn_total = 0
-        cnn_zero = cnn_total = 0
-        for name, layer in layer_dict.items():
-            if isinstance(layer, nn.Conv2d):
-                z = int(torch.sum(getattr(layer, "weight_mask") == 0.0).item())
-                b = int(torch.sum(getattr(layer, "bias_mask") == 0.0).item())
-                t = getattr(layer, "weight_mask").nelement()
-                print(f"{name} {z} {b} {t} {z/t*100:.2f}")
-                cnn_zero += z
-                cnn_total += t
-            if isinstance(layer, nn.BatchNorm2d):
-                z = int(torch.sum(getattr(layer, "weight_mask") == 0.0).item())
-                b = int(torch.sum(getattr(layer, "bias_mask") == 0.0).item())
-                t = getattr(layer, "weight_mask").nelement()
-                print(f"{name} {z} {b} {t} {z/t*100:.2f}")
-                bn_zero += z
-                bn_total += t
-        print(f"bn {bn_zero/bn_total*100:.2f}, cnn {cnn_zero/cnn_total*100:.2f}")
-        """
+        layers = [
+            v for v in self.model.modules() if type(v) in (nn.Conv2d, nn.BatchNorm2d)
+        ]
+        channel_conv_bn = []
+        for i in range(1, len(layers)):
+            if type(layers[i - 1]) is nn.Conv2d and type(layers[i]) is nn.BatchNorm2d:
+                out_channel = getattr(layers[i - 1], "weight").size()[0]
+                ch_info = ChannelInfo(int(out_channel)).to(self.device)
+                channel_conv_bn.append((ch_info, layers[i - 1], layers[i]))
+        return tuple(channel_conv_bn)
+
+    def get_params_to_prune(self) -> Tuple[Tuple[nn.Module, str], ...]:
+        """Get parameters to prune."""
+        t = [(channel, "weight") for channel, _, _ in self.channel_conv_bn]
+        return tuple(t)
+
+    @torch.no_grad()
+    def update_channel_data(self) -> None:
+        """Update channel info into channel data for prune."""
+        for channel, conv, _ in self.channel_conv_bn:
+            # get norm
+            w = copy.deepcopy(conv.weight)
+            output_, input_, h_, w_ = w.size()
+            w = w.view(output_, -1)
+            normed_w = torch.norm(w, p=self.config["PRUNE_PARAMS"]["NORM"], dim=(1))
+
+            channel.weight_orig.data = normed_w
+
+            # dummy forward for hook
+            dummy_data = torch.zeros_like(normed_w).view(1, -1, 1, 1)
+            channel.eval()
+            channel(dummy_data)
 
 
-def drop_overly_pruned(
-    params: Tuple[Tuple[Any, str], ...]
-) -> Tuple[Tuple[Any, str], ...]:
-    """Exclude excessively pruned params to preserve flow"""
-    params_to_prune = []
-    for layer, layer_type in params:
-        total = int(layer.weight_mask.nelement())
-        non_zero = int((layer.weight_mask != 0).sum().detach())
-        # prune only when preserved more than 20% of filters
-        if non_zero / total > 0.2:
-            params_to_prune.append((layer, layer_type))
-    return tuple(params_to_prune)
+class SlimMagnitude(Magnitude):
+    """Slim + Magnitude based layerwise pruning.
+    Bn_weight * L2_mag
+    """
+
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        dir_prefix: str,
+        wandb_log: bool,
+        wandb_init_params: Dict[str, Any],
+        device: torch.device,
+    ) -> None:
+        """Initialize."""
+        super(Magnitude, self).__init__(
+            config, dir_prefix, wandb_log, wandb_init_params, device
+        )
+
+    @torch.no_grad()
+    def update_channel_data(self) -> None:
+        """Update channel info into channel data for prune."""
+        for channel, conv, bn in self.channel_conv_bn:
+            # get norm
+            w = copy.deepcopy(conv.weight)
+            output_, input_, h_, w_ = w.size()
+            w = w.view(output_, -1)
+            normed_w = torch.norm(w, p=self.config["PRUNE_PARAMS"]["NORM"], dim=(1))
+            bn_w = copy.deepcopy(bn.weight)
+
+            channel.weight_orig.data = normed_w * bn_w.abs()
+
+            # dummy forward for hook
+            dummy_data = torch.zeros_like(normed_w).view(1, -1, 1, 1)
+            channel.eval()
+            channel(dummy_data)
