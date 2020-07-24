@@ -48,7 +48,7 @@ def initialize(
 
     # resume or load existing configurations
     if resume:
-        dir_prefix = os.path.join(checkpt_path, resume)
+        dir_prefix = resume
         assert os.path.exists(dir_prefix), f"{dir_prefix} does not exist"
         config_path = glob.glob(os.path.join(dir_prefix, "*.py"))[0]
         config_name = os.path.basename(config_path)

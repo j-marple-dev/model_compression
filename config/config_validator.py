@@ -247,6 +247,13 @@ class TrainConfigValidator(ConfigValidator):
                     == 0
                 )
 
+            # Check zero division in lr scheduling
+            assert (
+                self.config["EPOCHS"]
+                // self.config["LR_SCHEDULER_PARAMS"]["n_rewinding"]
+                > self.config["LR_SCHEDULER_PARAMS"]["warmup_epochs"]
+            )
+
             # min_lr
             if "min_lr" not in self.config["LR_SCHEDULER_PARAMS"]:
                 self.config["LR_SCHEDULER_PARAMS"]["min_lr"] = 0.0
@@ -283,6 +290,10 @@ class PruneConfigValidator(ConfigValidator):
 
         # validate training config
         TrainConfigValidator(self.config["TRAIN_CONFIG"], log=False).check()
+        # if different training policy at prune is not specified
+        if not self.config["TRAIN_CONFIG_AT_PRUNE"]:
+            self.config["TRAIN_COFING_AT_PRUNE"] = self.config["TRAIN_CONFIG"]
+        TrainConfigValidator(self.config["TRAIN_CONFIG_AT_PRUNE"], log=False).check()
 
         # validate prune config
         self.check_prune_methods()
@@ -290,18 +301,6 @@ class PruneConfigValidator(ConfigValidator):
         # if SEED is not specified, set it same as training config's SEED
         if "SEED" not in self.config:
             self.config["SEED"] = self.config["TRAIN_CONFIG"]["SEED"]
-
-        # if EPOCHS is not specified, set it same as training config's EPOCHS
-        if "EPOCHS" not in self.config:
-            self.config["EPOCHS"] = self.config["TRAIN_CONFIG"]["EPOCHS"]
-
-        # training config should contain the same epoch number in pruning config
-        else:
-            self.config["TRAIN_CONFIG"]["EPOCHS"] = self.config["EPOCHS"]
-
-        # check valid range and type
-        assert self.config["EPOCHS"] > 0
-        assert isinstance(self.config["EPOCHS"], int)
 
         assert 0 < self.config["N_PRUNING_ITER"]
         assert isinstance(self.config["N_PRUNING_ITER"], int)
@@ -326,14 +325,14 @@ class PruneConfigValidator(ConfigValidator):
         assert (
             0
             <= self.config["PRUNE_PARAMS"]["STORE_PARAM_BEFORE"]
-            <= self.config["EPOCHS"]
+            <= self.config["TRAIN_CONFIG_AT_PRUNE"]["EPOCHS"]
         )
         assert isinstance(self.config["PRUNE_PARAMS"]["STORE_PARAM_BEFORE"], int)
 
         assert (
             0
             <= self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"]
-            <= self.config["EPOCHS"]
+            <= self.config["TRAIN_CONFIG_AT_PRUNE"]["EPOCHS"]
         )
         assert isinstance(self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"], int)
         # config

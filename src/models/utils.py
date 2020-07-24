@@ -5,6 +5,7 @@
 - Email: jwpark@jmarple.ai
 """
 
+from collections import OrderedDict
 import hashlib
 import os
 import re
@@ -32,15 +33,12 @@ def initialize_params(model: Any, state_dict: Dict[str, Any], with_mask=True) ->
     """Initialize weights and masks."""
     model_dict = model.state_dict()
     # 1. filter out unnecessary keys
-    pretrained_dict = {}
-    for k, v in state_dict.items():
-        if k in model_dict and (
-            with_mask or ("weight_mask" not in k and "bias_mask" not in k)
-        ):
-            pretrained_dict[k] = v
-    # 2. overwrite entries in the existing state dict
-    model_dict.update(pretrained_dict)
+    pretrained_dict = OrderedDict()
+    for key_ori, key_pre in zip(model_dict.keys(), state_dict.keys()):
+        if with_mask or ("weight_mask" not in key_ori and "bias_mask" not in key_ori):
+            pretrained_dict[key_ori] = state_dict[key_pre]
     # 3. load the new state dict
+    model_dict.update(pretrained_dict)
     model.load_state_dict(model_dict)
 
 

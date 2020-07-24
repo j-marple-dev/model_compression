@@ -57,6 +57,19 @@ class Trainer(Runner):
             f"Created a model {self.config['MODEL_NAME']} with {(n_params / 10**6):.2f}M params"
         )
 
+        logger.info("Setup train configuration")
+        self.setup_train_configuration(self.config)
+
+        # create logger
+        if wandb_log:
+            wandb.init(**wandb_init_params)
+
+        self.n_correct_epoch: DefaultDict[str, int] = defaultdict(lambda: 0)
+
+    def setup_train_configuration(self, config: Dict[str, Any]) -> None:
+        """Setup train configuration."""
+        self.config = config
+        self.total_epochs = self.config["EPOCHS"]
         # get datasets
         trainset, testset = utils.get_dataset(
             config["DATASET"],
@@ -67,11 +80,9 @@ class Trainer(Runner):
         logger.info("Dataset prepared")
 
         # transform the training dataset for CutMix augmentation
-        if "CUTMIX" in self.config:
+        if "CUTMIX" in config:
             trainset = CutMix(
-                trainset,
-                self.config["MODEL_PARAMS"]["num_classes"],
-                **self.config["CUTMIX"],
+                trainset, config["MODEL_PARAMS"]["num_classes"], **config["CUTMIX"],
             )
 
         # get dataloaders
@@ -83,35 +94,29 @@ class Trainer(Runner):
 
         # define criterion and optimizer
         self.criterion = get_criterion(
-            criterion_name=self.config["CRITERION"],
-            criterion_params=self.config["CRITERION_PARAMS"],
+            criterion_name=config["CRITERION"],
+            criterion_params=config["CRITERION_PARAMS"],
             device=self.device,
         )
 
         self.regularizer = None
-        if "REGULARIZER" in self.config:
+        if "REGULARIZER" in config:
             self.regularizer = get_regularizer(
-                self.config["REGULARIZER"], self.config["REGULARIZER_PARAMS"]
+                config["REGULARIZER"], config["REGULARIZER_PARAMS"]
             )
 
         self.optimizer = optim.SGD(
             self.model.parameters(),
-            lr=self.config["LR"],
-            momentum=self.config["MOMENTUM"],
-            weight_decay=self.config["WEIGHT_DECAY"],
-            nesterov=self.config["NESTEROV"],
+            lr=config["LR"],
+            momentum=config["MOMENTUM"],
+            weight_decay=config["WEIGHT_DECAY"],
+            nesterov=config["NESTEROV"],
         )
 
         # learning rate scheduler
         self.lr_scheduler = get_lr_scheduler(
-            self.config["LR_SCHEDULER"], self.config["LR_SCHEDULER_PARAMS"],
+            config["LR_SCHEDULER"], config["LR_SCHEDULER_PARAMS"],
         )
-
-        # create logger
-        if wandb_log:
-            wandb.init(**wandb_init_params)
-
-        self.n_correct_epoch: DefaultDict[str, int] = defaultdict(lambda: 0)
 
     def reset(self, checkpt_dir: str) -> None:
         """Reset the configurations."""

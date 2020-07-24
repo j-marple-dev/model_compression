@@ -118,6 +118,11 @@ class Pruner(Runner):
         # pruning
         else:
             start_epoch = self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"]
+            logger.info("Change train configuration for pruning.")
+            if prune_iter == 0 or resumed:
+                self.trainer.setup_train_configuration(
+                    self.config["TRAIN_CONFIG_AT_PRUNE"]
+                )
 
             if not resumed:
                 self.prune_params(prune_iter)
@@ -211,6 +216,7 @@ class Pruner(Runner):
         if resume_info_path:
             start_iter = self.resume()
             epoch_to_resume = self.trainer.resume()
+            self.trainer.warmup_one_iter()
 
         for prune_iter in range(start_iter, self.config["N_PRUNING_ITER"]):
             start_epoch, sparsity_info = self.reset(prune_iter, epoch_to_resume > 0)
@@ -220,7 +226,7 @@ class Pruner(Runner):
                 start_epoch = epoch_to_resume
                 epoch_to_resume = 0
 
-            for epoch in range(start_epoch, self.config["EPOCHS"]):
+            for epoch in range(start_epoch, self.trainer.total_epochs):
                 self.trainer.run_one_epoch(epoch, sparsity_info)
 
                 # store weights with warmup
