@@ -78,6 +78,7 @@ class Trainer(Runner):
         self.trainloader, self.testloader = utils.get_dataloader(
             trainset, testset, config["BATCH_SIZE"], config["N_WORKERS"],
         )
+        self.input_size = trainset[0][0].size()
         logger.info("Dataloader prepared")
 
         # define criterion and optimizer

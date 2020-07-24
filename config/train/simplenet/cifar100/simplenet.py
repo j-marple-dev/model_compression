@@ -15,11 +15,9 @@ config = {
     "MODEL_NAME": "simplenet",
     "MODEL_PARAMS": dict(num_classes=100),
     "CRITERION": "CrossEntropy",
-    "CRITERION_PARAMS": dict(num_classes=100, label_smoothing=0.1),
+    "CRITERION_PARAMS": dict(num_classes=100),
     "LR_SCHEDULER": "WarmupCosineLR",
-    "LR_SCHEDULER_PARAMS": dict(
-        warmup_epochs=3, start_lr=1e-3, min_lr=5e-4, n_rewinding=4, decay=0.5
-    ),
+    "LR_SCHEDULER_PARAMS": dict(warmup_epochs=3, start_lr=1e-3),
     "BATCH_SIZE": 64,
     "LR": 0.1,
     "MOMENTUM": 0.9,

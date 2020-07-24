@@ -314,7 +314,7 @@ class PruneConfigValidator(ConfigValidator):
         )
         # Remove abstract class name
         pruner_names.remove("Pruner")
-        pruner_names.remove("LayerwisePruning")
+        pruner_names.remove("ChannelwisePruning")
 
         # Check pruner method in config exists
         assert self.config["PRUNE_METHOD"] in pruner_names

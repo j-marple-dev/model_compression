@@ -9,7 +9,7 @@ import abc
 import copy
 import itertools
 import os
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, cast
+from typing import Any, Callable, Dict, List, Set, Tuple, cast
 
 import torch
 import torch.nn as nn
@@ -17,6 +17,7 @@ import torch.nn.utils.prune as prune
 
 from src.format import percent_format
 from src.models import utils as model_utils
+from src.models.adjmodule_getter import AdjModuleGetter
 from src.plotter import Plotter
 from src.runners.runner import Runner
 from src.runners.trainer import Trainer
@@ -146,9 +147,10 @@ class Pruner(Runner):
             )
 
             # directory name for checkpoints
-            checkpt_dir = (
-                f"{prune_iter}_{(mask_total_sparsity):.2f}_" f"{self.dir_postfix}"
-            ).replace(".", "_")
+            checkpt_dir = f"{prune_iter}_"
+            checkpt_dir += f"{(mask_total_sparsity):.2f}_".replace(".", "_")
+            checkpt_dir += f"{self.dir_postfix}"
+
             logger.info(
                 "Initialized Pruning Settings: "
                 f"[{prune_iter} | {self.config['N_PRUNING_ITER']-1}]"
@@ -272,13 +274,13 @@ class Pruner(Runner):
     def early_stop(self) -> None:
         """Early stop."""
         logger.info("Prune cannot be done. Early stop")
-        raise SystemExit
+        raise Exception("Early Stop")
 
 
 class LotteryTicketHypothesis(Pruner):
     """LTH on whole layer.
 
-    Reference:
+    References:
         The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks
         (https://arxiv.org/pdf/1803.03635.pdf)
         Stabilizing the Lottery Ticket Hypothesis
@@ -319,7 +321,7 @@ class LotteryTicketHypothesis(Pruner):
 class LotteryTicketHypothesisFC(LotteryTicketHypothesis):
     """LTH on fc layer only.
 
-    Reference:
+    References:
         The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks
         (https://arxiv.org/pdf/1803.03635.pdf)
         Stabilizing the Lottery Ticket Hypothesis
@@ -342,7 +344,7 @@ class LotteryTicketHypothesisFC(LotteryTicketHypothesis):
         )
 
 
-class LayerwisePruning(Pruner):
+class ChannelwisePruning(Pruner):
     """Layerwise pruning."""
 
     def __init__(
@@ -354,12 +356,7 @@ class LayerwisePruning(Pruner):
         device: torch.device,
     ) -> None:
         """Initialize."""
-        # Channel info and corresponding conv pair
-        # ex) slim: bn - conv, L2: weight norm - conv
-        self._channel_conv_bn: Optional[
-            Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]
-        ] = None
-        super(LayerwisePruning, self).__init__(
+        super(ChannelwisePruning, self).__init__(
             config, dir_prefix, wandb_log, wandb_init_params, device
         )
 
@@ -368,7 +365,7 @@ class LayerwisePruning(Pruner):
         self,
     ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
         """Create channel_conv when it is needed."""
-        if not self._channel_conv_bn:
+        if not hasattr(self, "_channel_conv_bn"):
             self._channel_conv_bn = self.get_channel_conv_bn()
         return self._channel_conv_bn
 
@@ -394,6 +391,12 @@ class LayerwisePruning(Pruner):
         prev_sparsity = sparsity
         base_amount = amount = 0.005
 
+        # create adjacent module getter
+        input_size = (1, *self.trainer.input_size)
+        adjmodule_getter = AdjModuleGetter(
+            self.model, input_size=input_size, device=self.device
+        )
+
         # Give little margin to target_sparsity
         # target_sparsity never goes less than amount when used as intended
         while sparsity <= target_sparsity - amount:
@@ -401,15 +404,18 @@ class LayerwisePruning(Pruner):
             prune.global_unstructured(
                 params_to_prune, pruning_method=prune.L1Unstructured, amount=amount
             )
-            self.update_masks()
+            self.update_masks(adjmodule_getter)
             prev_sparsity = sparsity
             sparsity = model_utils.mask_sparsity(self.model_params) / 100
             if sparsity == prev_sparsity:
                 amount += base_amount
-        self.update_masks()
+        self.update_masks(adjmodule_getter)
 
-    def update_masks(self) -> None:
+    def update_masks(self, adjmodule_getter: AdjModuleGetter) -> None:
         """Copy channel to bias masks and conv masks."""
+        # Note: model must have nn.Flatten to get last conv shape info
+        last_conv_shape = adjmodule_getter.last_conv_shape
+
         for channel, conv, bn in self.channel_conv_bn:
             # Copy channel weight_mask to bias_mask
             ch_buffers = {name: buf for name, buf in channel.named_buffers()}
@@ -453,26 +459,21 @@ class LayerwisePruning(Pruner):
             elif type(v) is nn.BatchNorm2d:
                 bn_modules.update({k: v})
 
-        for name, fc in fc_modules.items():
-            if name not in self.model.fc_connection:
+        for fc in fc_modules.values():
+            bns = adjmodule_getter.find_modules_ahead_of(fc, nn.BatchNorm2d)
+            bn_connections = [bn.weight_mask for bn in bns]
+
+            if not bn_connections:
                 continue
-            bn_connections = []
-            for bn_name in self.model.fc_connection[name]:
-                bn = bn_modules[bn_name]
-                bn_buffers = {name: buf for name, buf in bn.named_buffers()}
-                bn_connections.append(bn_buffers["weight_mask"])
-            if bn_connections is None:
-                continue
+
             fc_mask = torch.cat(bn_connections)
             fc_mask = torch.flatten(
-                fc_mask.view(-1, 1, 1).repeat(
-                    1, self.model.last_conv_shape, self.model.last_conv_shape
-                )
+                fc_mask.view(-1, 1, 1).repeat(1, last_conv_shape, last_conv_shape)
             )
-            fc_buffers = {name: buf for name, buf in fc.named_buffers()}
-            o, i = fc_buffers["weight_mask"].size()
+
+            o, i = fc.weight_mask.size()  # type: ignore
             fc_mask = fc_mask.repeat(o).reshape(o, i)
-            fc_buffers["weight_mask"].set_(fc_mask)
+            fc.weight_mask.data = fc_mask
 
     def drop_overly_pruned(self, prune_iter: int) -> Tuple[Tuple[nn.Module, str], ...]:
         """Exclude excessively pruned params to preserve flow."""
@@ -492,6 +493,7 @@ class LayerwisePruning(Pruner):
         # nothing to prune -> early stop
         if len(exclude_param_index) == len(self.params_to_prune):
             self.early_stop()
+
         # safely prunes
         return self.update_params_to_prune(exclude_param_index)
 
@@ -518,7 +520,7 @@ class LayerwisePruning(Pruner):
         return tuple(excluded_params_prune)
 
 
-class NetworkSlimming(LayerwisePruning):
+class NetworkSlimming(ChannelwisePruning):
     """Network slimming(slim) on bn 2d.
 
     Reference:
@@ -596,11 +598,11 @@ class ChannelInfo(nn.Module):
         return x
 
 
-class Magnitude(LayerwisePruning):
+class Magnitude(ChannelwisePruning):
     """Magnitude based layerwise pruning.
 
-       Set NORM in PRUNE_PARAMS, for type of norm.
-       Possibly all types of norm that torch.norm supports.
+    Set NORM in PRUNE_PARAMS, for type of norm.
+    Possibly all types of norm that torch.norm supports.
     """
 
     def __init__(
@@ -621,10 +623,10 @@ class Magnitude(LayerwisePruning):
     ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
         """Get channel - conv - bn tuple.
 
-            Note:
-                Channel contains a data for prune.
-                For example, frobeinus norm in case of L2 magnitude,
-                             bn weight for network slimming.
+        Note:
+            Channel contains a data for prune.
+            For example, frobeinus norm in case of L2 magnitude,
+            bn weight for network slimming.
         """
         layers = [
             v for v in self.model.modules() if type(v) in (nn.Conv2d, nn.BatchNorm2d)
@@ -662,6 +664,7 @@ class Magnitude(LayerwisePruning):
 
 class SlimMagnitude(Magnitude):
     """Slim + Magnitude based layerwise pruning.
+
     Bn_weight * L2_mag
     """
 

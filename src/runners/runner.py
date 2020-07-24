@@ -21,12 +21,12 @@ class Runner(ABC):
         self.checkpt_paths = "checkpt_paths.log"
 
     @abstractmethod
-    def run(self) -> None:
+    def run(self, resume_info_path: str = "") -> None:
         """Run the module."""
         pass
 
     @abstractmethod
-    def resume(self, resume_info_path: str) -> int:
+    def resume(self) -> int:
         """Setting to resume the training."""
         pass
 
