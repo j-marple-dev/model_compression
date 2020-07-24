@@ -15,7 +15,11 @@ config_override = {
         alpha=0.9,
         teacher_model_name="densenet",
         teacher_model_params=dict(
-            depth=190, growthRate=40, compressionRate=2, num_classes=100
+            num_classes=100,
+            inplanes=24,
+            block_configs=(62, 62, 62),
+            growthRate=40,
+            compressionRate=2,
         ),
         crossentropy_params=dict(num_classes=100),
     ),

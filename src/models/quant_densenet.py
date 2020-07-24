@@ -12,7 +12,7 @@ import torch.nn as nn
 from torch.quantization import DeQuantStub, QuantStub, fuse_modules
 
 from src.models.common_layers import ConvBNReLU
-from src.models.fixed_densenet import BasicBlock, Bottleneck, DenseNet
+from src.models.densenet import BasicBlock, Bottleneck, DenseNet
 
 
 class QuantizableBottleneck(Bottleneck):

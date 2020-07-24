@@ -39,6 +39,17 @@ def simple_augment_test_cifar100() -> transforms.Compose:
     )
 
 
+def simple_augment_test_cifar100_224() -> transforms.Compose:
+    """Simple data augmentation rule for testing CIFAR100."""
+    return transforms.Compose(
+        [
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            transforms.Normalize(CIFAR100_INFO["MEAN"], CIFAR100_INFO["STD"]),
+        ]
+    )
+
+
 def autoaugment_train_cifar100() -> transforms.Compose:
     """Auto augmentation policy for training CIFAR100."""
     policies = [
@@ -112,7 +123,7 @@ def autoaugment_train_cifar100_riair() -> transforms.Compose:
 
 
 def randaugment_train_cifar100(
-    n_select: int = 2, level: int = 14, n_level: int = 31
+    n_select: int = 2, level: int = 14, n_level: int = 31,
 ) -> transforms.Compose:
     """Random augmentation policy for training CIFAR100."""
     operators = [
@@ -135,6 +146,38 @@ def randaugment_train_cifar100(
         [
             RandAugmentation(operators, n_select, level, n_level),
             transforms.RandomCrop(32, padding=4, fill=FILLCOLOR),
+            transforms.RandomHorizontalFlip(),
+            SequentialAugmentation([("Cutout", 1.0, 9)]),
+            transforms.ToTensor(),
+            transforms.Normalize(CIFAR100_INFO["MEAN"], CIFAR100_INFO["STD"]),
+        ]
+    )
+
+
+def randaugment_train_cifar100_224(
+    n_select: int = 2, level: int = 14, n_level: int = 31,
+) -> transforms.Compose:
+    operators = [
+        "Identity",
+        "AutoContrast",
+        "Equalize",
+        "Rotate",
+        "Solarize",
+        "Color",
+        "Posterize",
+        "Contrast",
+        "Brightness",
+        "Sharpness",
+        "ShearX",
+        "ShearY",
+        "TranslateX",
+        "TranslateY",
+    ]
+    return transforms.Compose(
+        [
+            transforms.Resize(224),
+            RandAugmentation(operators, n_select, level, n_level),
+            transforms.RandomCrop(224, padding=4, fill=FILLCOLOR),
             transforms.RandomHorizontalFlip(),
             SequentialAugmentation([("Cutout", 1.0, 9)]),
             transforms.ToTensor(),

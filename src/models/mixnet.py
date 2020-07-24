@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """MixNet - S / M / L, MicroNet.
 
+* Note: SHRINKING IS NOT SUPPORTED!
+
 - Author: Curt-Park
 - Email: jwpark@jmarple.ai
 - Paper: https://arxiv.org/abs/1907.09595

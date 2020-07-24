@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Configurations for mangnitude layerwise pruning.
+"""Configurations for mangnitude channel-wise pruning.
 
 - Author: Junghoon Kim
 - Email: jhkim@jmarple.ai
 """
 
-from config.train.fixed_densenet.cifar100 import fixed_densenet_small
+from config.train.densenet.cifar100 import densenet_small
 
-train_config = fixed_densenet_small.config
+train_config = densenet_small.config
 config = {
     "TRAIN_CONFIG": train_config,
     "N_PRUNING_ITER": 15,

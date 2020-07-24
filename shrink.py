@@ -21,7 +21,7 @@ parser.add_argument("--config", type=str, help="Pruning configuration path")
 args = parser.parse_args()
 
 # get config and directory path prefix for logging
-config, dir_prefix, device = initialize("prune", args.config, "", args.gpu)
+config, dir_prefix, device = initialize("shrink", args.config, "", args.gpu)
 
 assert args.checkpoint and os.path.exists(args.checkpoint), "--checkpoint required"
 shutil.copyfile(args.checkpoint, os.path.join(dir_prefix, "orig_model.pth.tar"))

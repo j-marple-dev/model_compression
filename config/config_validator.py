@@ -267,7 +267,7 @@ class PruneConfigValidator(ConfigValidator):
 
     def __init__(self, config: Dict[str, Any], log: bool = True) -> None:
         """Initialize."""
-        super().__init__(config, log=True)
+        super().__init__(config, log)
 
         self.necessary_config_names = {
             "TRAIN_CONFIG",
@@ -359,6 +359,26 @@ class QuantizeConfigValidator(TrainConfigValidator):
         """Check configs are specified correctly."""
         # validate training config
         super().check()
+
+
+class ShrinkConfigValidator(PruneConfigValidator):
+    """Config validation for shrink config."""
+
+    def __init__(self, config: Dict[str, Any], log: bool = True) -> None:
+        """Initialize."""
+        super().__init__(config, log)
+
+    def check(self) -> None:
+        """Check configs are specified correctly."""
+        # validate pruning config
+        super().check()
+
+        assert self.config["TRAIN_CONFIG"]["MODEL_NAME"] in {
+            "densenet",
+            "quant_densenet",
+            "simplenet",
+            "quant_simplenet",
+        }, f"{self.config['TRAIN_CONFIG']['MODEL_NAME']} is not supported"
 
 
 def get_class_names_in_files(path: str) -> List[str]:

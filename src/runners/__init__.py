@@ -18,6 +18,7 @@ import torch
 from config.config_validator import (
     PruneConfigValidator,
     QuantizeConfigValidator,
+    ShrinkConfigValidator,
     TrainConfigValidator,
 )
 import src.utils as utils
@@ -63,13 +64,16 @@ def initialize(
     utils.set_logger(filename=os.path.join(dir_prefix, f"{config_name}.log"))
 
     # config validation check
-    assert mode in {"train", "prune", "quantize"}
     if mode == "train":
         TrainConfigValidator(config).check()
     elif mode == "prune":
         PruneConfigValidator(config).check()
     elif mode == "quantize":
         QuantizeConfigValidator(config).check()
+    elif mode == "shrink":
+        ShrinkConfigValidator(config).check()
+    else:
+        raise NotImplementedError
 
     # set random seed
     utils.set_random_seed(config["SEED"])

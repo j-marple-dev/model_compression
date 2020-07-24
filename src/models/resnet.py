@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """ResNet model loader.
 
+* Note: SHRINKING IS NOT SUPPORTED!
+
 - Author: Curt-Park
 - Email: jwpark@jmarple.ai
 """

@@ -207,12 +207,17 @@ def dot2bracket(s: str) -> str:
        'vgg[2].conv2.bn[2]'
        >>> dot2bracket("features.11")
        'features[11]'
+       >>> dot2bracket("dense_blocks.0.0.conv1")
+       'dense_blocks[0][0].conv1'
     """
     pattern = r"\.[0-9]+"
     s_list = list(s)
     for m in re.finditer(pattern, s):
         start, end = m.span()
-        s_list[start] = "["
+        # e.g s_list == [..., ".", "0", ".", "0", ".", ...]
+        # step1: [..., "[", "0", "].", "0", ".", ...]
+        # step2: [..., "[", "0", "][", "0", "].", ...]
+        s_list[start] = s_list[start][:-1] + "["
         if end < len(s) and s_list[end] == ".":
             s_list[end] = "]."
         else:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Configurations for training as mixnet_ss (cifar100).
+"""Configurations for training micronet (cifar100).
 
 - Author: Curt-Park
 - Email: jwpark@jmarple.ai
