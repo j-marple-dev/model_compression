@@ -25,6 +25,10 @@ config = {
     "N_PRUNING_ITER": 15,
     "PRUNE_METHOD": "SlimMagnitude",
     "PRUNE_PARAMS": dict(
-        PRUNE_AMOUNT=0.1, NORM=2, STORE_PARAM_BEFORE=10, PRUNE_START_FROM=0
+        PRUNE_AMOUNT=0.1,
+        NORM=2,
+        STORE_PARAM_BEFORE=10,
+        PRUNE_START_FROM=0,
+        PRUNE_AT_BEST=False,
     ),
 }

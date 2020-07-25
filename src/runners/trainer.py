@@ -143,6 +143,10 @@ class Trainer(Runner):
             last_epoch = int(filename.split("_", 1)[0])
         return last_epoch + 1
 
+    def load_best_model(self) -> None:
+        """Load current best model."""
+        self.resume()
+
     def run(self, resume_info_path: str = "") -> None:
         """Train the model."""
         # resume trainer if needed

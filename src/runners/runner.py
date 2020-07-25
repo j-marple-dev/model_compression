@@ -25,11 +25,6 @@ class Runner(ABC):
         """Run the module."""
         pass
 
-    @abstractmethod
-    def resume(self) -> int:
-        """Setting to resume the training."""
-        pass
-
     def _fetch_latest_checkpt(self) -> str:
         """Fetch the latest checkpoint file path from the log file."""
         checkpt_paths = os.path.join(self.dir_prefix, self.checkpt_paths)

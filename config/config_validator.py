@@ -319,9 +319,11 @@ class PruneConfigValidator(ConfigValidator):
         assert self.config["PRUNE_METHOD"] in pruner_names
 
         # Common config
+        assert "PRUNE_AMOUNT" in self.config["PRUNE_PARAMS"]
         assert 0.0 < self.config["PRUNE_PARAMS"]["PRUNE_AMOUNT"] < 1.0
         assert isinstance(self.config["PRUNE_PARAMS"]["PRUNE_AMOUNT"], float)
 
+        assert "STORE_PARAM_BEFORE" in self.config["PRUNE_PARAMS"]
         assert (
             0
             <= self.config["PRUNE_PARAMS"]["STORE_PARAM_BEFORE"]
@@ -329,13 +331,18 @@ class PruneConfigValidator(ConfigValidator):
         )
         assert isinstance(self.config["PRUNE_PARAMS"]["STORE_PARAM_BEFORE"], int)
 
+        assert "PRUNE_START_FROM" in self.config["PRUNE_PARAMS"]
         assert (
             0
             <= self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"]
             <= self.config["TRAIN_CONFIG_AT_PRUNE"]["EPOCHS"]
         )
         assert isinstance(self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"], int)
-        # config
+
+        assert "PRUNE_AT_BEST" in self.config["PRUNE_PARAMS"]
+        assert isinstance(self.config["PRUNE_PARAMS"]["PRUNE_AT_BEST"], bool)
+
+        # Config for methods
         if (
             self.config["PRUNE_METHOD"] == "Magnitude"
             or self.config["PRUNE_METHOD"] == "SlimMagnitude"

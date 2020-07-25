@@ -118,10 +118,6 @@ class Shrinker(Runner):
             f"Params: {(n_params * 1e-6):.2f} M"
         )
 
-    def resume(self) -> int:
-        """Setting to resume the training."""
-        pass
-
     @torch.no_grad()
     def shrink_model(self, old_model: nn.Module, new_model: nn.Module) -> nn.Module:
         """Shrink model by removing pruned layer. Return shrinked(new) model."""

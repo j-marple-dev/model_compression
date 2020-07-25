@@ -89,10 +89,6 @@ class Quantizer(Runner):
         )
         self._init_model(checkpoint_path)
 
-    def resume(self) -> int:
-        """Setting to resume quantization."""
-        pass
-
     def run(self, resume_info_path: str = "") -> None:
         """Run quantization."""
         logger.info("Estimate the original model's size and accuracy")

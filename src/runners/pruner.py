@@ -125,6 +125,10 @@ class Pruner(Runner):
                 )
 
             if not resumed:
+                # Prune with current best model
+                if self.config["PRUNE_PARAMS"]["PRUNE_AT_BEST"]:
+                    self.trainer.load_best_model()
+                logger.info("Prune model")
                 self.prune_params(prune_iter)
             logger.info("Forward model for one iter to warmup")
             self.trainer.warmup_one_iter()
