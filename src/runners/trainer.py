@@ -317,7 +317,7 @@ class Trainer(Runner):
 
     def load_params(self, model_path: str, with_mask=True) -> None:
         """Load weights and masks."""
-        checkpt = torch.load(model_path)
+        checkpt = torch.load(model_path, map_location=self.device)
         model_utils.initialize_params(
             self.model, checkpt["state_dict"], with_mask=with_mask
         )
