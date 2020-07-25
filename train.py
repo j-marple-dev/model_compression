@@ -13,6 +13,7 @@ from src.runners.trainer import Trainer
 
 # arguments
 parser = argparse.ArgumentParser(description="Model trainer.")
+parser.add_argument("--multi-gpu", action="store_true", help="Multi-GPU use")
 parser.add_argument("--gpu", default=0, type=int, help="GPU id to use")
 parser.add_argument(
     "--resume", type=str, default="", help="Input log directory name to resume"
@@ -23,11 +24,14 @@ parser.add_argument(
 parser.add_argument(
     "--config", type=str, default="config/train/simplenet.py", help="Configuration path"
 )
+parser.set_defaults(multi_gpu=False)
 parser.set_defaults(wlog=False)
 args = parser.parse_args()
 
 # initialize
-config, dir_prefix, device = initialize("train", args.config, args.resume, args.gpu)
+config, dir_prefix, device = initialize(
+    "train", args.config, args.resume, args.multi_gpu, args.gpu
+)
 
 # run training
 wandb_name = args.resume if args.resume else curr_time

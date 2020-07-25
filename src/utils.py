@@ -95,10 +95,18 @@ def get_dataloader(
 ) -> Tuple[data.DataLoader, data.DataLoader]:
     """Get dataloader for training and testing."""
     trainloader = data.DataLoader(
-        trainset, batch_size=batch_size, shuffle=True, num_workers=n_workers,
+        trainset,
+        batch_size=batch_size,
+        shuffle=True,
+        pin_memory=(torch.cuda.is_available()),
+        num_workers=n_workers,
     )
     testloader = data.DataLoader(
-        testset, batch_size=batch_size, shuffle=False, num_workers=n_workers,
+        testset,
+        batch_size=batch_size,
+        shuffle=False,
+        pin_memory=(torch.cuda.is_available()),
+        num_workers=n_workers,
     )
     return trainloader, testloader
 

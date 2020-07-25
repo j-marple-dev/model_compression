@@ -84,9 +84,8 @@ class HintonKLD(Criterion):
             )
 
         logger.info(f"Load teacher model: {file_path}")
-        model_utils.initialize_params(
-            model=teacher, state_dict=torch.load(file_path)["state_dict"],
-        )
+        state_dict = torch.load(file_path, map_location=self.device)["state_dict"]
+        model_utils.initialize_params(model=teacher, state_dict=state_dict)
         teacher = teacher.to(self.device)
         teacher.eval()
         return teacher

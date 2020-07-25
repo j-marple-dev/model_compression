@@ -93,6 +93,7 @@ class Quantizer(Runner):
         """Run quantization."""
         logger.info("Estimate the original model's size and accuracy")
         # print_datatypes(self.model, "original model")
+        # self.trainer.warmup_one_iter()
         estimate_acc_size(self.model, self.trainer)
 
         # fuse the model
@@ -102,7 +103,7 @@ class Quantizer(Runner):
         # post training static quantization
         if self.static:
             logger.info("Post Training Static Quantization: Run calibration")
-            self.trainer.test_one_epoch_model(self.model)
+            self.trainer.warmup_one_iter()
         # quantization-aware training
         else:
             logger.info("Quantization Aware Training: Run training")

@@ -29,14 +29,23 @@ checkpt_path = os.path.join("save", "checkpoint")
 
 
 def initialize(
-    mode: str, config_path: str, resume: str = "", gpu_id: int = -1
+    mode: str,
+    config_path: str,
+    resume: str = "",
+    multi_gpu: bool = False,
+    gpu_id: int = -1,
 ) -> Tuple[Dict[str, Any], str, torch.device]:
     """Intialize."""
     # setup device
-    if gpu_id < 0:
-        device = torch.device("cpu")
-    else:
-        device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
+    if torch.cuda.is_available():
+        os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
+            f"{i}" for i in range(torch.cuda.device_count())
+        )
+        if multi_gpu:
+            device = torch.device("cuda")
+        elif 0 <= gpu_id < torch.cuda.device_count():
+            device = torch.device(f"cuda:{gpu_id}")
 
     # create directory
     dirs_in_save = ["", "data", "checkpoint"]

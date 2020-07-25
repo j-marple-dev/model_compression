@@ -56,7 +56,7 @@ class Shrinker(Runner):
             config=self.config["TRAIN_CONFIG"],
             dir_prefix=dir_prefix,
             checkpt_dir="",
-            device=device,
+            device=self.device,
             wandb_log=False,
             wandb_init_params=None,
         )

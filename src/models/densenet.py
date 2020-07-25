@@ -5,6 +5,9 @@ All blocks consist of ConvBNReLU for quantization.
 
 - Author: Curt-Park
 - Email: jwpark@jmarple.ai
+- References:
+    https://github.com/bearpaw/pytorch-classification
+    https://github.com/gpleiss/efficient_densenet_pytorch
 """
 
 import math
@@ -12,6 +15,7 @@ from typing import Any, Tuple
 
 import torch
 import torch.nn as nn
+import torch.utils.checkpoint as cp
 
 from src.models.common_layers import ConvBNReLU
 
@@ -20,43 +24,58 @@ class Bottleneck(nn.Module):
     """Bottleneck block for DenseNet."""
 
     def __init__(
-        self, inplanes: int, expansion: int = 4, growthRate: int = 12,
+        self, inplanes: int, expansion: int, growthRate: int, efficient: bool,
     ) -> None:
         """Initialize."""
         super(Bottleneck, self).__init__()
         planes = expansion * growthRate
         self.conv1 = ConvBNReLU(inplanes, planes, kernel_size=1)
         self.conv2 = ConvBNReLU(planes, growthRate, kernel_size=3)
+        self.efficient = efficient
 
-    def _cat(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Concat channels."""
-        return torch.cat((x, y), 1)
+    def _expand(self, *features: torch.Tensor) -> torch.Tensor:
+        """Bottleneck foward function."""
+        concated_features = torch.cat(features, 1)
+        bottleneck_output = self.conv1(concated_features)
+        return bottleneck_output
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, *prev_features: torch.Tensor) -> torch.Tensor:
         """Forward."""
-        out = self.conv1(x)
+        if self.efficient and any(feat.requires_grad for feat in prev_features):
+            out = cp.checkpoint(self._expand, *prev_features)
+        else:
+            out = self._expand(*prev_features)
         out = self.conv2(out)
-        return self._cat(x, out)
+        return out
 
 
-class BasicBlock(nn.Module):
-    """BasicBlock for DenseNet."""
-
+class DenseBlock(nn.Module):
     def __init__(
-        self, inplanes: int, expansion: int = 1, growthRate: int = 12,
-    ) -> None:
-        """Initialize."""
-        super(BasicBlock, self).__init__()
-        self.conv = ConvBNReLU(inplanes, growthRate, kernel_size=3)
+        self,
+        inplanes: int,
+        blocks: int,
+        expansion: int,
+        growth_rate: int,
+        efficient: bool,
+        Layer: "type" = Bottleneck,
+    ):
+        super(DenseBlock, self).__init__()
+        self.layers = nn.ModuleList()
+        for i in range(blocks):
+            layer = Layer(
+                inplanes=inplanes + i * growth_rate,
+                expansion=expansion,
+                growthRate=growth_rate,
+                efficient=efficient,
+            )
+            self.layers.append(layer)
 
-    def _cat(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Concat channels."""
-        return torch.cat((x, y), 1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward."""
-        out = self.conv(x)
-        return self._cat(x, out)
+    def forward(self, init_features: torch.Tensor) -> torch.Tensor:
+        features = [init_features]
+        for layer in self.layers:
+            new_features = layer(*features)
+            features.append(new_features)
+        return torch.cat(features, dim=1)
 
 
 class Transition(nn.Module):
@@ -84,32 +103,34 @@ class DenseNet(nn.Module):
         inplanes: int,
         stem_stride: int = 1,
         block_configs: Tuple[int, ...] = (6, 12, 24, 16),
+        expansion: int = 4,
         growthRate: int = 12,
         compressionRate: int = 2,
-        block: "type" = Bottleneck,
+        efficient: bool = False,  # memory efficient dense block
+        Block: "type" = DenseBlock,
     ) -> None:
         """Initialize."""
         super(DenseNet, self).__init__()
 
         self.growthRate = growthRate
         self.inplanes = inplanes
+        self.expansion = expansion
         self.stem = ConvBNReLU(3, self.inplanes, kernel_size=3, stride=stem_stride)
 
-        if block is Bottleneck:
-            block_depth = 2
-        elif block is BasicBlock:
-            block_depth = 1
-        else:
-            raise NotImplementedError
-
         layers = []
-        for i, n in enumerate(block_configs):
-            layers.append(self._make_denseblock(block, n // block_depth))
+        for i, depth in enumerate(block_configs):
+            n_bottleneck = depth // 2
+            dense_block = Block(
+                self.inplanes, n_bottleneck, expansion, growthRate, efficient
+            )
+            layers.append(dense_block)
+            self.inplanes += n_bottleneck * self.growthRate
+            # not add transition at the end
             if i < len(block_configs) - 1:
                 layers.append(self._make_transition(compressionRate))
         self.dense_blocks = nn.Sequential(*layers)
 
-        self.avgpool = nn.AvgPool2d(8)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten()  # type: ignore
         self.fc = nn.Linear(self.inplanes, num_classes)
 
@@ -121,16 +142,6 @@ class DenseNet(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
-
-    def _make_denseblock(self, block: "type", blocks: int) -> nn.Module:
-        """Make a dense block."""
-        layers = []
-        for _ in range(blocks):
-            # Currently we fix the expansion ratio as the default value
-            layers.append(block(self.inplanes, growthRate=self.growthRate))
-            self.inplanes += self.growthRate
-
-        return nn.Sequential(*layers)
 
     def _make_transition(self, compressionRate: int) -> nn.Module:
         """Make a transition."""
@@ -146,7 +157,6 @@ class DenseNet(nn.Module):
         x = self.avgpool(x)
         x = self.flatten(x)
         x = self.fc(x)
-
         return x
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

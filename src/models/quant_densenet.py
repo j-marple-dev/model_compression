@@ -5,44 +5,59 @@
 - Email: jwpark@jmarple.ai
 """
 
-from typing import Any
+from typing import Any, List, Tuple
 
 import torch
 import torch.nn as nn
 from torch.quantization import DeQuantStub, QuantStub, fuse_modules
 
-from src.models.common_layers import ConvBNReLU
-from src.models.densenet import BasicBlock, Bottleneck, DenseNet
+from src.models.common_layers import ConvBN, ConvBNReLU
+from src.models.densenet import Bottleneck, DenseBlock, DenseNet
 
 
 class QuantizableBottleneck(Bottleneck):
     """Quantizable Bottleneck layer."""
 
     def __init__(
-        self, inplanes: int, expansion: int = 4, growthRate: int = 12,
+        self, inplanes: int, expansion: int, growthRate: int, efficient: bool,
     ) -> None:
         """Initialize."""
-        super(QuantizableBottleneck, self).__init__(inplanes, expansion, growthRate)
+        super(QuantizableBottleneck, self).__init__(
+            inplanes, expansion, growthRate, efficient=False
+        )
         self.cat = nn.quantized.FloatFunctional()
 
-    def _cat(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Concat channels."""
-        return self.cat.cat((x, y), dim=1)
+    # arbitrary sized input makes failure when quantizating models
+    def forward(self, prev_features: List[torch.Tensor]) -> torch.Tensor:
+        """Forward."""
+        # checkpoint doesn't work in scripted models
+        out = self.cat.cat(prev_features, dim=1)
+        out = self.conv1(out)
+        out = self.conv2(out)
+        return out
 
 
-class QuantizableBasicBlock(BasicBlock):
-    """Quantizable BasicBlock for DenseNet."""
-
+class QuantizableDenseBlock(DenseBlock):
     def __init__(
-        self, inplanes: int, expansion: int = 1, growthRate: int = 12,
-    ) -> None:
-        """Initialize."""
-        super(QuantizableBasicBlock, self).__init__(inplanes, expansion, growthRate)
+        self,
+        inplanes: int,
+        blocks: int,
+        expansion: int,
+        growth_rate: int,
+        efficient: bool,
+        Layer: "type" = QuantizableBottleneck,
+    ):
+        super(QuantizableDenseBlock, self).__init__(
+            inplanes, blocks, expansion, growth_rate, efficient, Layer
+        )
         self.cat = nn.quantized.FloatFunctional()
 
-    def _cat(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Concat channels."""
-        return self.cat.cat((x, y), dim=1)
+    def forward(self, init_features: torch.Tensor) -> torch.Tensor:
+        features = [init_features]
+        for layer in self.layers:
+            new_features = layer(features)
+            features.append(new_features)
+        return self.cat.cat(features, dim=1)
 
 
 class QuantizableDenseNet(DenseNet):
@@ -51,15 +66,27 @@ class QuantizableDenseNet(DenseNet):
     def __init__(
         self,
         num_classes: int,
-        depth: int = 22,
+        inplanes: int,
+        stem_stride: int = 1,
+        block_configs: Tuple[int, ...] = (6, 12, 24, 16),
+        expansion: int = 4,
         growthRate: int = 12,
         compressionRate: int = 2,
-        block: "type" = QuantizableBottleneck,
+        efficient: bool = False,
+        Block: "type" = QuantizableDenseBlock,
     ) -> None:
         """Initialize."""
         self.inplanes = 0  # type annotation
         super(QuantizableDenseNet, self).__init__(
-            num_classes, depth, growthRate, compressionRate, block
+            num_classes,
+            inplanes,
+            stem_stride,
+            block_configs,
+            expansion,
+            growthRate,
+            compressionRate,
+            efficient,
+            Block,
         )
         self.quant = QuantStub()
         self.dequant = DeQuantStub()
@@ -76,6 +103,8 @@ class QuantizableDenseNet(DenseNet):
         for m in self.modules():
             if type(m) is ConvBNReLU:
                 fuse_modules(m, ["conv", "bn", "relu"], inplace=True)
+            if type(m) is ConvBN:
+                fuse_modules(m, ["conv", "bn"], inplace=True)
 
 
 def get_model(**kwargs: Any) -> nn.Module:

@@ -69,6 +69,7 @@ Model trainer.
 
 optional arguments:
   -h, --help       show this help message and exit
+  --multi-gpu      Multi-GPU use
   --gpu GPU        GPU id to use
   --resume RESUME  Input log directory name to resume
   --wlog           Turns on wandb logging
@@ -98,6 +99,7 @@ Model pruner.
 
 optional arguments:
   -h, --help       show this help message and exit
+  --multi-gpu      Multi-GPU use
   --gpu GPU        GPU id to use
   --resume RESUME  Input log directory name to resume
   --wlog           Turns on wandb logging

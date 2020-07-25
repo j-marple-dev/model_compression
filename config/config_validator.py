@@ -291,8 +291,8 @@ class PruneConfigValidator(ConfigValidator):
         # validate training config
         TrainConfigValidator(self.config["TRAIN_CONFIG"], log=False).check()
         # if different training policy at prune is not specified
-        if not self.config["TRAIN_CONFIG_AT_PRUNE"]:
-            self.config["TRAIN_COFING_AT_PRUNE"] = self.config["TRAIN_CONFIG"]
+        if "TRAIN_CONFIG_AT_PRUNE" not in self.config:
+            self.config["TRAIN_CONFIG_AT_PRUNE"] = self.config["TRAIN_CONFIG"]
         TrainConfigValidator(self.config["TRAIN_CONFIG_AT_PRUNE"], log=False).check()
 
         # validate prune config

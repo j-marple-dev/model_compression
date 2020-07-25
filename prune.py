@@ -12,6 +12,7 @@ from src.runners import curr_time, initialize
 
 # arguments
 parser = argparse.ArgumentParser(description="Model pruner.")
+parser.add_argument("--multi-gpu", action="store_true", help="Multi-GPU use")
 parser.add_argument("--gpu", default=0, type=int, help="GPU id to use")
 parser.add_argument(
     "--resume",
@@ -28,11 +29,14 @@ parser.add_argument(
     default="config/prune/simplenet_kd.py",
     help="Configuration path",
 )
+parser.set_defaults(multi_gpu=False)
 parser.set_defaults(log=False)
 args = parser.parse_args()
 
 # initialize
-config, dir_prefix, device = initialize("prune", args.config, args.resume, args.gpu)
+config, dir_prefix, device = initialize(
+    "prune", args.config, args.resume, args.multi_gpu, args.gpu
+)
 
 # run pruning
 wandb_name = args.resume if args.resume else curr_time
