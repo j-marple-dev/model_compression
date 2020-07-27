@@ -19,11 +19,15 @@ parser.add_argument(
     "--resume", type=str, default="", help="Input log directory name to resume"
 )
 parser.add_argument(
+    "--half", dest="half", action="store_true", help="Use half precision"
+)
+parser.add_argument(
     "--wlog", dest="wlog", action="store_true", help="Turns on wandb logging"
 )
 parser.add_argument(
     "--config", type=str, default="config/train/simplenet.py", help="Configuration path"
 )
+parser.set_defaults(half=False)
 parser.set_defaults(multi_gpu=False)
 parser.set_defaults(wlog=False)
 args = parser.parse_args()
@@ -43,5 +47,6 @@ trainer = Trainer(
     wandb_log=args.wlog,
     wandb_init_params=wandb_init_params,
     device=device,
+    half=args.half,
 )
 trainer.run(args.resume)

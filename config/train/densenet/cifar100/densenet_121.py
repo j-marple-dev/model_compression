@@ -22,7 +22,7 @@ config = {
         compressionRate=2,
         block_configs=(6, 12, 24, 16),
         small_input=False,
-        efficient=True,
+        efficient=False,
     ),
     "CRITERION": "CrossEntropy",
     "CRITERION_PARAMS": dict(num_classes=100, label_smoothing=0.1),

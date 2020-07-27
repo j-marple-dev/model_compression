@@ -51,6 +51,7 @@ class Quantizer(Runner):
         checkpoint_path: str,
         dir_prefix: str,
         static: bool,
+        check_acc: bool,
         backend: str,
         wandb_log: bool,
         wandb_init_params: Dict[str, Any],
@@ -59,6 +60,7 @@ class Quantizer(Runner):
         super(Quantizer, self).__init__(config, dir_prefix)
         self.mask: Dict[str, torch.Tensor] = dict()
         self.params_pruned = None
+        self.check_acc = check_acc
         self.static = static
         self.backend = backend
 
@@ -73,8 +75,6 @@ class Quantizer(Runner):
             test_preprocess_hook=self._quantize,
         )
 
-        # initialize the model
-        logger.info("Initialize the model")
         self.model = self.trainer.model
         self.params_all = model_utils.get_params(
             self.model,
@@ -87,14 +87,18 @@ class Quantizer(Runner):
                 (nn.Linear, "bias"),
             ),
         )
+
+        # initialize the model
         self._init_model(checkpoint_path)
 
     def run(self, resume_info_path: str = "") -> None:
         """Run quantization."""
-        logger.info("Estimate the original model's size and accuracy")
         # print_datatypes(self.model, "original model")
-        # self.trainer.warmup_one_iter()
-        estimate_acc_size(self.model, self.trainer)
+        self.trainer.warmup_one_iter()
+        orig_model_path = os.path.join(self.dir_prefix, "orig_model.pth")
+        torch.save(self.model.state_dict(), orig_model_path)
+        size = os.path.getsize(orig_model_path) / 1e6
+        logger.info(f"Acc: {self.orig_acc} %\tSize: {size:.6f} MB")
 
         # fuse the model
         self._prepare()
@@ -115,38 +119,41 @@ class Quantizer(Runner):
 
         # quantize the model
         quantized_model = self._quantize(self.model)
-        # print_datatypes(quantized_model, "Quantized model")
-        logger.info("Estimate the quantized model's size and accuracy")
-        estimate_acc_size(quantized_model, self.trainer)
-        torch.save(
-            quantized_model.state_dict(),
-            os.path.join(self.dir_prefix, "quantized_model.pth"),
-        )
+        if self.check_acc:
+            _, acc = self.trainer.test_one_epoch()
+            acc = f"{acc['model_acc']:.2f}"
+        else:
+            self.trainer.warmup_one_iter()
+            acc = "None"
+        quantized_model_path = os.path.join(self.dir_prefix, "quantized_model.pth")
+        torch.save(quantized_model.state_dict(), quantized_model_path)
+        size = os.path.getsize(quantized_model_path) / 1e6
+        logger.info(f"Acc: {acc} %\tSize: {size:.6f} MB")
 
         # script the model
         scripted_model = torch.jit.script(quantized_model)
         # print_datatypes(scripted_model, "Scripted model")
-        logger.info("Estimate the scripted model's size and accuracy")
-        estimate_acc_size(scripted_model, self.trainer)
 
-        # save and load the scripted model
+        if self.check_acc:
+            _, acc = self.trainer.test_one_epoch_model(scripted_model)
+            acc = f"{acc['model_acc']:.2f}"
+        else:
+            self.trainer.warmup_one_iter()
+            acc = "None"
         scripted_model_path = os.path.join(self.dir_prefix, "scripted_model.pth")
         torch.jit.save(scripted_model, scripted_model_path)
-        logger.info(f"Saved the scripted model as {scripted_model_path}")
-        logger.info(f"Loaded the scripted model as {scripted_model_path}")
-        loaded_model = torch.jit.load(scripted_model_path)
-        logger.info("Estimate the loaded scripted model's size and accuracy")
-        estimate_acc_size(loaded_model, self.trainer)
+        size = os.path.getsize(scripted_model_path) / 1e6
+        logger.info(f"Acc: {acc} %\tSize: {size:.6f} MB")
 
     def _init_model(self, checkpoint_path: str) -> None:
         """Create a model instance and load weights."""
         # load weights
         logger.info(f"Load weights from the checkpoint {checkpoint_path}")
-        state_dict = torch.load(checkpoint_path, map_location=torch.device("cpu"))[
-            "state_dict"
-        ]
+        checkpoint = torch.load(checkpoint_path, map_location=torch.device("cpu"))
 
-        # check the trained model is pruned
+        state_dict = checkpoint["state_dict"]
+        self.orig_acc = checkpoint["test_acc"]
+
         is_pruned = (
             next((name for name in state_dict if "mask" in name), None) is not None
         )
@@ -155,9 +162,10 @@ class Quantizer(Runner):
             logger.info("Dummy prunning to load pruned weights")
             model_utils.dummy_pruning(self.params_all)
 
-        # initialize weights
-        logger.info("Initialize weights")
         model_utils.initialize_params(self.model, state_dict)
+        logger.info("Initialized weights")
+
+        # check the trained model is pruned
 
         if is_pruned:
             logger.info(

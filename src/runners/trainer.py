@@ -39,10 +39,12 @@ class Trainer(Runner):
         wandb_log: bool,
         wandb_init_params: Dict[str, Any],
         device: torch.device,
+        half: bool = False,
         test_preprocess_hook: Callable[[nn.Module], nn.Module] = None,
     ) -> None:
         """Initialize."""
         super(Trainer, self).__init__(config, dir_prefix)
+        self.half = half
         self.device = device
         self.wandb_log = wandb_log
         self.reset(checkpt_dir)
@@ -54,6 +56,8 @@ class Trainer(Runner):
         self.model = model_utils.get_model(model_name, model_config).to(self.device)
         if device == torch.device("cuda"):  # multi-gpu
             self.model = torch.nn.DataParallel(self.model).to(self.device)
+        if self.half:
+            self.model.half()
         n_params = model_utils.count_model_params(self.model)
         logger.info(
             f"Created a model {self.config['MODEL_NAME']} with {(n_params / 10**6):.2f}M params"
@@ -235,6 +239,8 @@ class Trainer(Runner):
         for data in progressbar(self.trainloader, prefix="[Train]\t"):
             # get the inputs; data is a list of [inputs, labels]
             images, labels = data[0].to(self.device), data[1].to(self.device)
+            if self.half:
+                images = images.half()
             # zero the parameter gradients
             self.optimizer.zero_grad()
 
@@ -266,6 +272,8 @@ class Trainer(Runner):
         model.eval()
         for data in progressbar(self.testloader, prefix="[Test]\t"):
             images, labels = data[0].to(self.device), data[1].to(self.device)
+            if self.half:
+                images = images.half()
 
             # forward + backward + optimize
             loss, outputs = self.criterion(model, images=images, labels=labels)
@@ -305,6 +313,9 @@ class Trainer(Runner):
             "optimizer": self.optimizer.state_dict(),
             "test_acc": test_acc,
         }
+        torch.save(self.model, os.path.join(self.dir_prefix, "best.pth"))
+        logger.info(f"Saved the best model in {self.dir_prefix}")
+
         filepath = os.path.join(model_path, f"{filename}.{self.fileext}")
         torch.save(params, filepath)
         logger.info(

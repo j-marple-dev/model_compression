@@ -67,12 +67,12 @@ class QuantizableDenseNet(DenseNet):
         self,
         num_classes: int,
         inplanes: int,
-        stem_stride: int = 1,
-        block_configs: Tuple[int, ...] = (6, 12, 24, 16),
         expansion: int = 4,
         growthRate: int = 12,
         compressionRate: int = 2,
-        efficient: bool = False,
+        block_configs: Tuple[int, ...] = (6, 12, 24, 16),
+        small_input: bool = True,  # e.g. CIFAR100
+        efficient: bool = False,  # memory efficient dense block
         Block: "type" = QuantizableDenseBlock,
     ) -> None:
         """Initialize."""
@@ -80,11 +80,11 @@ class QuantizableDenseNet(DenseNet):
         super(QuantizableDenseNet, self).__init__(
             num_classes,
             inplanes,
-            stem_stride,
-            block_configs,
             expansion,
             growthRate,
             compressionRate,
+            block_configs,
+            small_input,
             efficient,
             Block,
         )
