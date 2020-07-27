@@ -1,7 +1,6 @@
 # use conda install
-torch == 1.5.0
-torchvision == 0.6.0
-progressbar2 == 3.51.3
+# conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
+# conda install -c conda-forge progressbar2
 
 # use pip install
 gdown == 3.11.1

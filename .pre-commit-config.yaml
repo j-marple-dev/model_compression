@@ -6,8 +6,3 @@ repos:
       language: system
       entry: make format
       types: [python]
-    - id: test
-      name: test
-      language: system
-      entry: make test
-      types: [python]

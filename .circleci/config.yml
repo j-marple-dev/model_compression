@@ -6,8 +6,8 @@ jobs:
       - image: jmarpledev/model_compression
     steps:
       - checkout
-      - run: make dev
-      - run: make test
+      - run: pip install -r requirements-dev.txt
+      - run: make format
 
 workflows:
   main:
