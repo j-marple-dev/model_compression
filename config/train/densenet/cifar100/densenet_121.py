@@ -18,10 +18,10 @@ config = {
     "MODEL_PARAMS": dict(
         num_classes=100,
         inplanes=24,
-        stem_stride=2,
-        block_configs=(32, 32, 32, 32),
-        growthRate=12,
+        growthRate=32,
         compressionRate=2,
+        block_configs=(6, 12, 24, 16),
+        small_input=False,
         efficient=True,
     ),
     "CRITERION": "CrossEntropy",

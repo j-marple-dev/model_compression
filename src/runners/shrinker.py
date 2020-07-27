@@ -5,6 +5,7 @@
 - Email: jwpark@jmarple.ai
 """
 
+import os
 from typing import Any, Dict, Optional, Tuple
 
 import torch
@@ -100,21 +101,40 @@ class Shrinker(Runner):
         size = model_utils.get_model_size_mb(self.model)
         sparsity = model_utils.sparsity(self.params_all)
         logger.info(
-            f"Original model's ACC: {acc['model_acc']:.2f}, Size: {size} MB, "
+            f"Original model's Acc: {acc['model_acc']:.2f}, Size: {size} MB, "
             f"Sparsity: {sparsity:.2f} %"
         )
 
-        self.shrinked_model = model_utils.get_model(
+        shrinked_model = model_utils.get_model(
             self.train_config["MODEL_NAME"], self.train_config["MODEL_PARAMS"]
         ).to(self.device)
-        self.shrinked_model = self.shrink_model(self.model, self.shrinked_model)
+        shrinked_model = self.shrink_model(self.model, shrinked_model)
 
         # measure the shrinked model size
-        _, acc = self.trainer.test_one_epoch_model(self.shrinked_model)
-        size = model_utils.get_model_size_mb(self.shrinked_model)
-        n_params = model_utils.count_model_params(self.shrinked_model)
+        _, acc = self.trainer.test_one_epoch_model(shrinked_model)
+        size = model_utils.get_model_size_mb(shrinked_model)
+        n_params = model_utils.count_model_params(shrinked_model)
         logger.info(
-            f"Shrinked model's ACC: {acc['model_acc']:.2f}, Size: {size} MB, "
+            f"Shrinked model's Acc: {acc['model_acc']:.2f}, Size: {size} MB, "
+            f"Params: {(n_params * 1e-6):.2f} M"
+        )
+
+        # save the shrinked model
+        shrinked_model_path = os.path.join(self.dir_prefix, "shrinked_model.pth")
+        torch.save(shrinked_model, shrinked_model_path)
+        logger.info(f"Saved shrinked model as {shrinked_model_path}")
+
+        # load the shrinked model
+        logger.info(f"Load a shrinked model from {shrinked_model_path}")
+        loaded_model = torch.load(shrinked_model_path)
+        loaded_model.eval()
+
+        # measure the loaded model size
+        _, acc = self.trainer.test_one_epoch_model(loaded_model)
+        size = model_utils.get_model_size_mb(loaded_model)
+        n_params = model_utils.count_model_params(loaded_model)
+        logger.info(
+            f"Loaded model's Acc: {acc['model_acc']:.2f}, Size: {size} MB, "
             f"Params: {(n_params * 1e-6):.2f} M"
         )
 

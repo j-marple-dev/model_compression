@@ -120,7 +120,7 @@ class Quantizer(Runner):
         estimate_acc_size(quantized_model, self.trainer)
         torch.save(
             quantized_model.state_dict(),
-            os.path.join(self.dir_prefix, "quantized_model.pt"),
+            os.path.join(self.dir_prefix, "quantized_model.pth"),
         )
 
         # script the model
@@ -128,9 +128,15 @@ class Quantizer(Runner):
         # print_datatypes(scripted_model, "Scripted model")
         logger.info("Estimate the scripted model's size and accuracy")
         estimate_acc_size(scripted_model, self.trainer)
-        torch.jit.save(
-            scripted_model, os.path.join(self.dir_prefix, "scripted_model.pth.zip")
-        )
+
+        # save and load the scripted model
+        scripted_model_path = os.path.join(self.dir_prefix, "scripted_model.pth")
+        torch.jit.save(scripted_model, scripted_model_path)
+        logger.info(f"Saved the scripted model as {scripted_model_path}")
+        logger.info(f"Loaded the scripted model as {scripted_model_path}")
+        loaded_model = torch.jit.load(scripted_model_path)
+        logger.info("Estimate the loaded scripted model's size and accuracy")
+        estimate_acc_size(loaded_model, self.trainer)
 
     def _init_model(self, checkpoint_path: str) -> None:
         """Create a model instance and load weights."""

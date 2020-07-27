@@ -101,11 +101,11 @@ class DenseNet(nn.Module):
         self,
         num_classes: int,
         inplanes: int,
-        stem_stride: int = 1,
-        block_configs: Tuple[int, ...] = (6, 12, 24, 16),
         expansion: int = 4,
         growthRate: int = 12,
         compressionRate: int = 2,
+        block_configs: Tuple[int, ...] = (6, 12, 24, 16),
+        small_input: bool = True,  # e.g. CIFAR100
         efficient: bool = False,  # memory efficient dense block
         Block: "type" = DenseBlock,
     ) -> None:
@@ -115,11 +115,17 @@ class DenseNet(nn.Module):
         self.growthRate = growthRate
         self.inplanes = inplanes
         self.expansion = expansion
-        self.stem = ConvBNReLU(3, self.inplanes, kernel_size=3, stride=stem_stride)
+
+        if small_input:
+            self.stem = ConvBNReLU(3, self.inplanes, kernel_size=3, stride=1)
+        else:
+            self.stem = nn.Sequential(
+                ConvBNReLU(3, self.inplanes, kernel_size=7, stride=2),
+                nn.MaxPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=False),
+            )
 
         layers = []
-        for i, depth in enumerate(block_configs):
-            n_bottleneck = depth // 2
+        for i, n_bottleneck in enumerate(block_configs):
             dense_block = Block(
                 self.inplanes, n_bottleneck, expansion, growthRate, efficient
             )

@@ -17,9 +17,9 @@ config_override = {
         teacher_model_params=dict(
             num_classes=100,
             inplanes=24,
-            block_configs=(62, 62, 62),
             growthRate=40,
             compressionRate=2,
+            block_configs=(31, 31, 31),
         ),
         crossentropy_params=dict(num_classes=100),
     ),
