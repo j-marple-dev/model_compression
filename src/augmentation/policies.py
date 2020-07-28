@@ -44,7 +44,7 @@ def simple_augment_train_ai_challenge(image_size: int = 224) -> transforms.Compo
     """Simple data augmentation rule for training AI_CHALLENGE dataset."""
     return transforms.Compose(
         [
-            transforms.Resize(image_size),
+            transforms.Resize((image_size, image_size)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(CHALLENGE_INFO["MEAN"], CHALLENGE_INFO["STD"]),
@@ -56,7 +56,7 @@ def simple_augment_test_ai_challenge(image_size: int = 224) -> transforms.Compos
     """Simple data augmentation rule for testing AI_CHALLENGE dataset."""
     return transforms.Compose(
         [
-            transforms.Resize(image_size),
+            transforms.Resize((image_size, image_size)),
             transforms.ToTensor(),
             transforms.Normalize(CHALLENGE_INFO["MEAN"], CHALLENGE_INFO["STD"]),
         ]
@@ -220,7 +220,7 @@ def randaugment_train_ai_challenge(
     ]
     return transforms.Compose(
         [
-            transforms.Resize(int(image_size * 1.33)),
+            transforms.Resize((int(image_size * 1.33), int(image_size * 1.33))),
             RandAugmentation(operators, n_select, level, n_level),
             transforms.RandomCrop(image_size, padding=4, fill=FILLCOLOR),
             transforms.RandomHorizontalFlip(),

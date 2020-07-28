@@ -91,7 +91,7 @@ def get_dataset(
     if dataset_name in "AI_CHALLENGE":
         dataset = ImageFolder
         file_path = f"save/data/{dataset_name.lower()}/total/"
-        trainset_args.update(dict(root=file_path + "test/"))
+        trainset_args.update(dict(root=file_path + "train/"))
         testset_args.update(dict(root=file_path + "test/"))
 
         # Future
