@@ -11,6 +11,7 @@ from typing import List, NamedTuple, Sequence, Tuple, Union
 import PIL.Image
 import matplotlib.axes
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FixedLocator
 import numpy as np
 import torch
 import torch.nn as nn
@@ -52,8 +53,8 @@ class Plotter:
         ax = fig.add_subplot(1, 1, 1)
         ax.matshow(conf_mat)
         # Gridlines based on minor ticks
-        ax.set_xticklabels(np.arange(0, 41, 1));
-        ax.set_yticklabels(np.arange(0, 41, 1));
+        ax.xaxis.set_major_locator(FixedLocator(np.linspace(0, 41, 1)))
+        ax.yaxis.set_major_locator(FixedLocator(np.linspace(0, 41, 1)))
 
         ax.grid(which="minor", color="w", linestyle="-", linewidth=2)
         fig.savefig(save_dir + os.path.sep + str(epoch))
@@ -70,6 +71,7 @@ class Plotter:
                 },
                 commit=False,
             )
+        plt.close(fig)
 
     def plot(self, model: nn.Module, path: str) -> None:
         """Plot sparsity information and save into given path(and wandb if enabled)."""

@@ -197,8 +197,7 @@ class Trainer(Runner):
             self.run_one_epoch()
 
     def run_one_epoch(
-        self,
-        extra_log_info: List[Tuple[str, float, Callable[[float], str]]] = None,
+        self, extra_log_info: List[Tuple[str, float, Callable[[float], str]]] = None,
     ) -> None:
         """Train one epoch and run testing and logging."""
         self.lr_scheduler(self.optimizer, self.epoch)
@@ -268,18 +267,21 @@ class Trainer(Runner):
                 self.labels_stat[module_name],
                 self.preds_stat[module_name],
                 average="macro",
+                zero_division=1,
             ).mean()
             precision *= 100
             recall = recall_score(
                 self.labels_stat[module_name],
                 self.preds_stat[module_name],
                 average="macro",
+                zero_division=1,
             ).mean()
             recall *= 100
             f1 = f1_score(
                 self.labels_stat[module_name],
                 self.preds_stat[module_name],
                 average="macro",
+                zero_division=1,
             ).mean()
             f1 *= 100
             stat.update({module_name + "_recall": recall})
@@ -357,9 +359,7 @@ class Trainer(Runner):
         return self.test_one_epoch_model(model)
 
     @torch.no_grad()
-    def test_one_epoch_model(
-        self, model: nn.Module
-    ) -> Tuple[float, Dict[str, float]]:
+    def test_one_epoch_model(self, model: nn.Module) -> Tuple[float, Dict[str, float]]:
         """Test the input model."""
         losses = []
         model.eval()
