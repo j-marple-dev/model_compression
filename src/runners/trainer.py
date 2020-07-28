@@ -123,8 +123,8 @@ class Trainer(Runner):
 
         # transform the training dataset for CutMix augmentation
         if "CUTMIX" in config:
-            for t in trainsets:
-                t = CutMix(
+            for i, t in enumerate(trainsets):
+                trainsets[i] = CutMix(
                     t, config["MODEL_PARAMS"]["num_classes"], **config["CUTMIX"],
                 )
 
