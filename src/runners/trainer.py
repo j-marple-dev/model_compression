@@ -11,7 +11,6 @@ import os
 from typing import Any, Callable, DefaultDict, Dict, List, Tuple
 
 from progressbar import progressbar
-from scipy.stats import mean
 from sklearn.metrics import f1_score
 import torch
 import torch.nn as nn
@@ -288,7 +287,7 @@ class Trainer(Runner):
                 self.preds_stat[module_name],
                 average="macro",
             )
-            f1_mean = 100.0 * mean(f1_score_multi)
+            f1_mean = 100.0 * f1_score_multi.mean()
             # conf_mat = confusion_matrix(self.labels_stat[module_name],
             # self.preds_stat[module_name])
             stat.update({module_name + "_f1mean": f1_mean})
