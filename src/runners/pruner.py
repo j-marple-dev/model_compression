@@ -53,10 +53,10 @@ class Pruner(Runner):
             config=self.config["TRAIN_CONFIG"],
             dir_prefix=dir_prefix,
             checkpt_dir=self.pretrain_dir_name,
-            device=device,
             wandb_log=wandb_log,
             wandb_init_params=wandb_init_params,
-            # plotter=self.plotter,
+            device=device,
+            plotter=self.plotter,
         )
         self.model = self.trainer.model
 

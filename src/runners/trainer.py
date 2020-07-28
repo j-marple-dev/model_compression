@@ -11,7 +11,7 @@ from typing import Any, Callable, DefaultDict, Dict, List, Tuple
 
 import pandas as pd
 from progressbar import progressbar
-from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,6 +23,7 @@ from src.criterions import get_criterion
 from src.format import default_format, percent_format
 from src.lr_schedulers import get_lr_scheduler
 from src.models import utils as model_utils
+from src.plotter import Plotter
 from src.regularizers import get_regularizer
 from src.runners.runner import Runner
 import src.utils as utils
@@ -41,6 +42,7 @@ class Trainer(Runner):
         wandb_log: bool,
         wandb_init_params: Dict[str, Any],
         device: torch.device,
+        plotter: Plotter = None,
         half: bool = False,
         test_preprocess_hook: Callable[[nn.Module], nn.Module] = None,
     ) -> None:
@@ -51,6 +53,10 @@ class Trainer(Runner):
         self.wandb_log = wandb_log
         self.reset(checkpt_dir)
         self.test_preprocess_hook = test_preprocess_hook
+        if plotter is None:
+            self.plotter = Plotter(self.wandb_log)
+        else:
+            self.plotter = plotter
 
         # create a model
         model_name = self.config["MODEL_NAME"]
@@ -181,15 +187,14 @@ class Trainer(Runner):
             start_epoch = self.resume()
 
         for self.epoch in range(start_epoch, self.config["EPOCHS"]):
-            self.run_one_epoch(self.epoch)
+            self.run_one_epoch()
 
     def run_one_epoch(
         self,
-        epoch: int,
         extra_log_info: List[Tuple[str, float, Callable[[float], str]]] = None,
     ) -> None:
         """Train one epoch and run testing and logging."""
-        self.lr_scheduler(self.optimizer, epoch)
+        self.lr_scheduler(self.optimizer, self.epoch)
 
         # train
         train_loss, train_stat = self.train_one_epoch()
@@ -201,11 +206,11 @@ class Trainer(Runner):
         test_acc = test_stat["model_" + self.acc_metric]
         if test_acc > self.best_acc:
             self.best_acc = test_acc
-            filename = str(epoch) + "_" + f"{self.best_acc:.2f}".replace(".", "_")
-            self.save_params(self.model_save_dir, filename, epoch, test_acc)
+            filename = str(self.epoch) + "_" + f"{self.best_acc:.2f}".replace(".", "_")
+            self.save_params(self.model_save_dir, filename, self.epoch, test_acc)
 
         # save the model every epoch
-        model_path = os.path.join(self.model_save_dir, f"{epoch}.pth")
+        model_path = os.path.join(self.model_save_dir, f"{self.epoch}.pth")
         logger.info(f"Saved model as {model_path}")
         torch.save(self.model.state_dict(), model_path)
 
@@ -220,7 +225,7 @@ class Trainer(Runner):
         log_info.append(("test/loss", test_loss, default_format))
         log_info += [("test/" + k, v, percent_format) for k, v in test_stat.items()]
         log_info.append(("test/best_" + self.acc_metric, self.best_acc, percent_format))
-        self.log_one_epoch(epoch, log_info + extra_log_info)
+        self.log_one_epoch(self.epoch, log_info + extra_log_info)
 
     def log_one_epoch(
         self, epoch: int, log_info: List[Tuple[str, float, Callable[[float], str]]]
@@ -273,6 +278,13 @@ class Trainer(Runner):
             stat.update({module_name + "_recall": recall})
             stat.update({module_name + "_precision": precision})
             stat.update({module_name + "_f1": f1})
+        if is_test:
+            conf_mat = confusion_matrix(
+                y_true=self.labels_stat["model"],
+                y_pred=self.preds_stat["model"],
+                normalize="true",
+            )
+            self.plotter.plot_conf_mat(conf_mat, self.model_save_dir, self.epoch)
         self.n_correct_epoch.clear()
         self.labels_stat.clear()
         self.preds_stat.clear()
@@ -338,7 +350,9 @@ class Trainer(Runner):
         return self.test_one_epoch_model(model)
 
     @torch.no_grad()
-    def test_one_epoch_model(self, model: nn.Module) -> Tuple[float, Dict[str, float]]:
+    def test_one_epoch_model(
+        self, model: nn.Module
+    ) -> Tuple[float, Dict[str, float]]:
         """Test the input model."""
         losses = []
         model.eval()
