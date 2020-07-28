@@ -11,7 +11,7 @@ import logging.handlers
 import os
 import random
 import sys
-from typing import Any, Dict, List, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import torch
@@ -64,148 +64,62 @@ def get_dataset(
     transform_test: str = "simple_augment_test_cifar100",
     transform_train_params: Dict[str, int] = None,
     transform_test_params: Dict[str, int] = None,
-    crawl_ratio: float = 0.0,
-) -> Tuple[List[VisionDataset], List[VisionDataset]]:
+) -> Tuple[VisionDataset, VisionDataset]:
     """Get dataset for training and testing."""
     if not transform_train_params:
         transform_train_params = dict()
 
-    # get transform
+    # preprocessing policies
     transform_train = getattr(
         __import__("src.augmentation.policies", fromlist=[""]), transform_train,
     )(**transform_train_params)
-    # test dataset
     transform_test = getattr(
         __import__("src.augmentation.policies", fromlist=[""]), transform_test,
     )(**transform_test_params)
-
-    trainsets: List[VisionDataset] = []
-    testsets: List[VisionDataset] = []
-
-    trainset_args: Dict[str, Any] = dict(transform=transform_train)
-    testset_args: Dict[str, Any] = dict(transform=transform_test)
 
     # challenge
     # Each dataset is described in the following link:
     # https://github.com/Curt-Park/model_compression/pull/70
     if dataset_name in "AI_CHALLENGE":
-        dataset = ImageFolder
-        file_path = f"save/data/{dataset_name.lower()}/total/"
-        trainset_args.update(dict(root=file_path + "train/"))
-        testset_args.update(dict(root=file_path + "test/"))
-
-        # Future
-        trainsets.append(dataset(**trainset_args))
-        testsets.append(dataset(**testset_args))
-
-        if crawl_ratio > 0.0:
-            crawl_trainset_args: Dict[str, Any] = dict(transform=transform_train)
-            crawl_testset_args: Dict[str, Any] = dict(transform=transform_test)
-            crawl_trainset_args.update(dict(root=file_path + "crawl/train/"))
-            crawl_testset_args.update(dict(root=file_path + "crawl/test/"))
-
-            trainsets.append(dataset(**crawl_trainset_args))
-            testsets.append(dataset(**crawl_testset_args))
+        Dataset = ImageFolder
+        trainset_args = dict(root=f"save/data/{dataset_name.lower()}/total/train")
+        testset_args = dict(root=f"save/data/{dataset_name.lower()}/total/test")
 
     # pytorch dataset
     else:
-        dataset = getattr(
+        Dataset = getattr(
             __import__("torchvision.datasets", fromlist=[""]), dataset_name
         )
-        trainset_args.update(dict(root="save/data", train=True, download=True))
-        testset_args.update(dict(root="save/data", train=False, download=False))
+        trainset_args = dict(root="save/data", train=True, download=True)
+        testset_args = dict(root="save/data", train=False, download=False)
 
-        trainsets.append(dataset(**trainset_args))
-        testsets.append(dataset(**testset_args))
+    trainset_args.update(dict(transform=transform_train))
+    testset_args.update(dict(transform=transform_test))
+    trainset = Dataset(**trainset_args)
+    testset = Dataset(**testset_args)
 
-    return trainsets, testsets
+    return trainset, testset
 
 
 def get_dataloader(
-    trainsets: List[VisionDataset],
-    testsets: List[VisionDataset],
-    batch_size: int,
-    n_workers: int,
-    multidataloader_config: Dict[str, Any] = None,
-) -> Tuple[List[data.DataLoader], List[data.DataLoader]]:
+    trainset: VisionDataset, testset: VisionDataset, batch_size: int, n_workers: int,
+) -> Tuple[data.DataLoader, data.DataLoader]:
     """Get dataloader for training and testing."""
-    trainloaders: List[data.DataLoader] = []
-    testloaders: List[data.DataLoader] = []
-
-    # dataloader config contains info for multi dataset
-    if multidataloader_config:
-        # get each batchsize for DataLoader
-        crawl_ratio = multidataloader_config["crawl_ratio"]
-        batch_sizes = [
-            int(round(batch_size * (1 - crawl_ratio))),
-            int(round(batch_size * (crawl_ratio))),
-        ]
-        batch_residual = sum(batch_sizes) - batch_size
-        batch_sizes[0] -= batch_residual
-
-        for train, test, bs in zip(trainsets, testsets, batch_sizes):
-            train_args: Dict[str, Any] = dict({"shuffle": True, "batch_size": bs})
-            if multidataloader_config["stratified_sample"]:
-                indices = list(range(len(train)))
-                # distribution of classes in the dataset
-                label_to_count: Dict[str, int] = {}
-                for idx in indices:
-                    label = _get_label(train, idx)
-                    if label in label_to_count:
-                        label_to_count[label] += 1
-                    else:
-                        label_to_count[label] = 1
-
-                # weight for each sample
-                weights = [
-                    1.0 / label_to_count[_get_label(train, idx)] for idx in indices
-                ]
-                weights = torch.DoubleTensor(weights)  # type: ignore
-                sampler = torch.utils.data.sampler.WeightedRandomSampler(
-                    weights=weights,
-                    num_samples=int(bs * multidataloader_config["iter_per_epoch"]),
-                    replacement=True,
-                )
-                # When sampler is specified, shuffle must be False
-                train_args = {"sampler": sampler, "shuffle": False, "batch_size": bs}
-            trainloaders.append(
-                data.DataLoader(
-                    train,
-                    pin_memory=(torch.cuda.is_available()),
-                    num_workers=n_workers,
-                    **train_args,
-                )
-            )
-
-            testloaders.append(
-                data.DataLoader(
-                    test,
-                    batch_size=batch_size,
-                    shuffle=False,
-                    pin_memory=(torch.cuda.is_available()),
-                    num_workers=n_workers,
-                )
-            )
-    else:
-        trainloaders.append(
-            data.DataLoader(
-                trainsets[0],
-                batch_size=batch_size,
-                shuffle=True,
-                pin_memory=(torch.cuda.is_available()),
-                num_workers=n_workers,
-            )
-        )
-        testloaders.append(
-            data.DataLoader(
-                testsets[0],
-                batch_size=batch_size,
-                shuffle=False,
-                pin_memory=(torch.cuda.is_available()),
-                num_workers=n_workers,
-            )
-        )
-    return trainloaders, testloaders
+    trainloader = data.DataLoader(
+        trainset,
+        pin_memory=(torch.cuda.is_available()),
+        num_workers=n_workers,
+        shuffle=True,
+        batch_size=batch_size,
+    )
+    testloader = data.DataLoader(
+        testset,
+        pin_memory=(torch.cuda.is_available()),
+        num_workers=n_workers,
+        shuffle=False,
+        batch_size=batch_size,
+    )
+    return trainloader, testloader
 
 
 def _get_label(dataset: VisionDataset, idx: int):

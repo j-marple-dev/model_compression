@@ -16,7 +16,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torch.utils.data as data
 import wandb
 
 from src.augmentation.methods import CutMix
@@ -54,7 +53,6 @@ class Trainer(Runner):
         self.wandb_log = wandb_log
         self.reset(checkpt_dir)
         self.test_preprocess_hook = test_preprocess_hook
-        self.calculate_mean_std = False
 
         # create a model
         model_name = self.config["MODEL_NAME"]
@@ -65,7 +63,7 @@ class Trainer(Runner):
         if self.half:
             self.model.half()
         n_params = model_utils.count_model_params(self.model)
-        torch.save(self.model, os.path.join(self.dir_prefix, "init.pth"))
+        torch.save(self.model.state_dict(), os.path.join(self.dir_prefix, "init.pth"))
         logger.info(
             f"Created a model {self.config['MODEL_NAME']} with {(n_params / 10**6):.2f}M params"
         )
@@ -89,55 +87,28 @@ class Trainer(Runner):
         """Setup train configuration."""
         self.config = config
         self.total_epochs = self.config["EPOCHS"]
+
         # get datasets
-        trainsets, testsets = utils.get_dataset(
+        trainset, testset = utils.get_dataset(
             config["DATASET"],
             config["AUG_TRAIN"],
             config["AUG_TEST"],
             config["AUG_TRAIN_PARAMS"],
             config["AUG_TEST_PARAMS"],
         )
+        self.input_size = trainset[0][0].size()
         logger.info("Datasets prepared")
-
-        # calculate data mean, std
-        if self.calculate_mean_std:
-            logger.info("Calculating trainsets' mean and std")
-            combined_dataset = data.ConcatDataset(trainsets)
-            mean, std, n_img, n_cnt = (
-                torch.zeros(3),
-                torch.zeros(3),
-                len(combined_dataset),
-                0,
-            )
-            for img, _ in combined_dataset:
-                img = img.view((3, -1))
-                mean += img.mean(1) / n_img
-                std += img.std(1) / n_img
-                n_cnt += 1
-                if n_cnt % (n_img // 100) == 0:
-                    logger.info(
-                        f"Mean/Std calculation: {n_cnt} / {n_img} images processed"
-                    )
-            logger.info(f"{n_img} train data's MEAN: {mean}, STD: {std}")
 
         # transform the training dataset for CutMix augmentation
         if "CUTMIX" in config:
-            for i, t in enumerate(trainsets):
-                trainsets[i] = CutMix(
-                    t, config["MODEL_PARAMS"]["num_classes"], **config["CUTMIX"],
-                )
+            trainset = CutMix(
+                trainset, config["MODEL_PARAMS"]["num_classes"], **config["CUTMIX"],
+            )
 
         # get dataloaders
-        self.trainloaders, self.testloaders = utils.get_dataloader(
-            trainsets,
-            testsets,
-            config["BATCH_SIZE"],
-            config["N_WORKERS"],
-            config["MULTI_DATALOADER_CONFIG"]
-            if "MULTI_DATALOADER_CONFIG" in config
-            else None,
+        self.trainloader, self.testloader = utils.get_dataloader(
+            trainset, testset, config["BATCH_SIZE"], config["N_WORKERS"],
         )
-        self.input_size = trainsets[0][0][0].size()
         logger.info("Dataloader prepared")
 
         # define criterion and optimizer
@@ -229,7 +200,7 @@ class Trainer(Runner):
         # save the model every epoch
         model_path = os.path.join(self.model_save_dir, f"{epoch}.pth")
         logger.info(f"Saved model as {model_path}")
-        torch.save(self.model, model_path)
+        torch.save(self.model.state_dict(), model_path)
 
         # log
         if not extra_log_info:
@@ -274,10 +245,8 @@ class Trainer(Runner):
         """Get accuracy, f1_score, cofusion matrix, and then reset statistics."""
         stat = dict()
         n_total = (
-            self.get_datalen(self.testloaders)
-            if is_test
-            else self.get_datalen(self.trainloaders)
-        )  # hardcode
+            len(self.testloader.dataset) if is_test else len(self.trainloader.dataset)
+        )
         for module_name in self.n_correct_epoch:
             precision = 100 * self.n_correct_epoch[module_name] / n_total
             stat.update({module_name + "_precision": precision})
@@ -298,34 +267,17 @@ class Trainer(Runner):
 
         return stat
 
-    def get_datalen(self, loaders: List[data.DataLoader]) -> int:
-        len_ = []
-        for ld in loaders:
-            if hasattr(ld, "sampler"):
-                len_.append(len(ld.sampler))  # type: ignore
-            else:
-                len_.append(len(ld.dataset))
-
-        return sum(len_)
-
     def train_one_epoch(self) -> Tuple[float, Dict[str, float]]:
         """Train one epoch."""
         losses = []
         self.model.train()
         # trainloaders contain same length(iteration) of batch dataset
-        for data_list in itertools.zip_longest(
-            progressbar(*self.trainloaders, prefix="[Train]\t")
-        ):
+        for data in progressbar(self.trainloader, prefix="[Train]\t"):
             # get the inputs; data is a list of [inputs, labels]
-            image_list = []
-            label_list = []
-            for i in data_list:
-                image_list.append(i[0])
-                label_list.append(i[1])
-            images = torch.cat(image_list).to(self.device)
-            labels = torch.cat(label_list).to(self.device)
+            images, labels = data[0].to(self.device), data[1].to(self.device)
             if self.half:
                 images = images.half()
+
             # zero the parameter gradients
             self.optimizer.zero_grad()
 
@@ -356,16 +308,9 @@ class Trainer(Runner):
         losses = []
         model.eval()
         # testloaders contain same length(iteration) of batch dataset
-        for data_list in itertools.zip_longest(
-            progressbar(*self.testloaders, prefix="[Test]\t")
-        ):
-            image_list = []
-            label_list = []
-            for i in data_list:
-                image_list.append(i[0])
-                label_list.append(i[1])
-            images = torch.cat(image_list).to(self.device)
-            labels = torch.cat(label_list).to(self.device)
+        for data in progressbar(self.testloader, prefix="[Test]\t"):
+            images, labels = data[0].to(self.device), data[1].to(self.device)
+
             if self.half:
                 images = images.half()
 

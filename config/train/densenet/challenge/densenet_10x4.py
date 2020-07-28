@@ -18,11 +18,6 @@ config.update(
         "BEST_ACC_METRIC": "f1mean",
         "CUTMIX": dict(beta=1, prob=0.5),
         "DATASET": "AI_CHALLENGE",
-        "MULTI_DATALOADER_CONFIG": dict(
-            iter_per_epoch=int(60_000 / config["BATCH_SIZE"]),
-            stratified_sample=True,
-            crawl_ratio=0.0,
-        ),
         "MODEL_NAME": "densenet",
         "MODEL_PARAMS": dict(
             num_classes=41,
