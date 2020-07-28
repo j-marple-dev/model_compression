@@ -15,6 +15,7 @@ from src.augmentation.methods import (
 from src.augmentation.transforms import FILLCOLOR
 
 CIFAR100_INFO = {"MEAN": (0.5071, 0.4865, 0.4409), "STD": (0.2673, 0.2564, 0.2762)}
+CHALLENGE_INFO = {"MEAN": (0.4825, 0.3558, 0.4421), "STD": (0.6947, 0.7027, 0.6498)}
 
 
 def simple_augment_train_cifar100() -> transforms.Compose:
@@ -39,13 +40,25 @@ def simple_augment_test_cifar100() -> transforms.Compose:
     )
 
 
-def simple_augment_test_cifar100_224() -> transforms.Compose:
-    """Simple data augmentation rule for testing CIFAR100."""
+def simple_augment_train_ai_challenge(image_size: int = 224) -> transforms.Compose:
+    """Simple data augmentation rule for training AI_CHALLENGE dataset."""
     return transforms.Compose(
         [
-            transforms.Resize(224),
+            transforms.Resize(image_size),
+            transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize(CIFAR100_INFO["MEAN"], CIFAR100_INFO["STD"]),
+            transforms.Normalize(CHALLENGE_INFO["MEAN"], CHALLENGE_INFO["STD"]),
+        ]
+    )
+
+
+def simple_augment_test_ai_challenge(image_size: int = 224) -> transforms.Compose:
+    """Simple data augmentation rule for testing AI_CHALLENGE dataset."""
+    return transforms.Compose(
+        [
+            transforms.Resize(image_size),
+            transforms.ToTensor(),
+            transforms.Normalize(CHALLENGE_INFO["MEAN"], CHALLENGE_INFO["STD"]),
         ]
     )
 
@@ -182,5 +195,37 @@ def randaugment_train_cifar100_224(
             SequentialAugmentation([("Cutout", 1.0, 9)]),
             transforms.ToTensor(),
             transforms.Normalize(CIFAR100_INFO["MEAN"], CIFAR100_INFO["STD"]),
+        ]
+    )
+
+
+def randaugment_train_ai_challenge(
+    n_select: int = 2, level: int = 14, n_level: int = 31, image_size: int = 224,
+) -> transforms.Compose:
+    operators = [
+        "Identity",
+        "AutoContrast",
+        "Equalize",
+        "Rotate",
+        "Solarize",
+        "Color",
+        "Posterize",
+        "Contrast",
+        "Brightness",
+        "Sharpness",
+        "ShearX",
+        "ShearY",
+        "TranslateX",
+        "TranslateY",
+    ]
+    return transforms.Compose(
+        [
+            transforms.Resize(int(image_size * 1.33)),
+            RandAugmentation(operators, n_select, level, n_level),
+            transforms.RandomCrop(image_size, padding=4, fill=FILLCOLOR),
+            transforms.RandomHorizontalFlip(),
+            SequentialAugmentation([("Cutout", 1.0, 9)]),
+            transforms.ToTensor(),
+            transforms.Normalize(CHALLENGE_INFO["MEAN"], CHALLENGE_INFO["STD"]),
         ]
     )

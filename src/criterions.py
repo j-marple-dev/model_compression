@@ -202,6 +202,59 @@ class CrossEntropy(Criterion):
         return smooth_target
 
 
+class F1Loss(Criterion):
+    """F1Loss accepting soft labels.
+
+    Attributes:
+        log_softmax (nn.Module): log softmax function.
+        num_classes (int): number of classes in dataset, to get onehot labels
+    """
+
+    def __init__(
+        self, device: torch.device, num_classes: int, epsilon: float = 1e-7
+    ) -> None:
+        """Initialize cross entropy loss."""
+        super().__init__(device)
+        self.num_classes = num_classes
+        self.epsilon = epsilon
+
+    def forward(
+        self, model: nn.Module, images: torch.Tensor, labels: torch.Tensor
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        """Forward model, calculate loss."""
+        logit = model(images)
+        return self.calculate_loss(logit=logit, labels=labels), {"model": logit}
+
+    def calculate_loss(self, logit: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """Pure part of calculate loss, does not contain model forward procedure, \
+        so that it can be combined with other loss.
+
+        Args:
+            logit (torch.Tensor): model output,
+                (https://developers.google.com/machine-learning/glossary/#logits).
+            labels (torch.Tensor): labels for input images.
+        Returns:
+            loss (torch.Tensor): calculated loss.
+        """
+        # if labels are index values -> expand to onehot for compatability
+        y_true = utils.to_onehot(labels=labels, num_classes=self.num_classes).to(
+            self.device
+        )
+        y_pred = F.softmax(logit, dim=1).to(self.device)
+
+        tp = (y_true * y_pred).sum(dim=0)
+        # tn = (1 - y_true) * (1 - y_pred)
+        fp = ((1 - y_true) * y_pred).sum(dim=0)
+        fn = (y_true * (1 - y_pred)).sum(dim=0)
+
+        precision = tp / (tp + fp + self.epsilon)
+        recall = tp / (tp + fn + self.epsilon)
+
+        f1 = 2 * (precision * recall) / (precision + recall + self.epsilon)
+        f1 = f1.clamp(min=self.epsilon, max=1 - self.epsilon)
+        return 1 - f1.mean()
+
+
 def get_criterion(
     criterion_name: str, criterion_params: Dict[str, Any], device: torch.device,
 ) -> nn.Module:

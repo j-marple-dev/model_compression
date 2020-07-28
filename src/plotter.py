@@ -47,6 +47,11 @@ class Plotter:
         self.wandb_log = wandb_log
         self.total_sparsity = 0.0
 
+    def plot_conf_mat(
+        self, conf_mat: np.ndarray, module_name: str, is_test: bool
+    ) -> None:
+        pass
+
     def plot(self, model: nn.Module, path: str) -> None:
         """Plot sparsity information and save into given path(and wandb if enabled)."""
         layer_names, params, ratio = self._get_prune_statistics(model)

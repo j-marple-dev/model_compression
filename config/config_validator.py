@@ -109,6 +109,16 @@ class TrainConfigValidator(ConfigValidator):
         else:
             self.config["AUG_TRAIN_PARAMS"] = dict()
 
+        if "AUG_TEST_PARAMS" in self.config:
+            assert isinstance(self.config["AUG_TEST_PARAMS"], dict)
+        else:
+            self.config["AUG_TEST_PARAMS"] = dict()
+
+        if "BEST_ACC_METRIC" in self.config:
+            assert type(self.config["BEST_ACC_METRIC"]) is str
+        else:
+            self.config["BEST_ACC_METRIC"] = "precision"  # default
+
         self.check_criterion()
         self.check_lr_schedulers()
         self.check_regularizer()
@@ -148,7 +158,6 @@ class TrainConfigValidator(ConfigValidator):
         elif self.config["CRITERION"] == "CrossEntropy":
             ce_params = self.config["CRITERION_PARAMS"]
 
-        if ce_params:
             assert "num_classes" in ce_params
             assert ce_params["num_classes"] > 0
             assert isinstance(ce_params["num_classes"], int)

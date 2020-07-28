@@ -4,5 +4,6 @@
 
 # use pip install
 gdown == 3.11.1
+sklearn
 wandb
 pyyaml

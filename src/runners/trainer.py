@@ -6,14 +6,18 @@
 """
 
 from collections import defaultdict
+import itertools
 import os
 from typing import Any, Callable, DefaultDict, Dict, List, Tuple
 
 from progressbar import progressbar
+from scipy.stats import gmean
+from sklearn.metrics import f1_score
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import torch.utils.data as data
 import wandb
 
 from src.augmentation.methods import CutMix
@@ -25,6 +29,8 @@ from src.regularizers import get_regularizer
 from src.runners.runner import Runner
 import src.utils as utils
 
+# from src.plotter import Plotter
+# from sklearn.metrics import confusion_matrix, f1_score
 logger = utils.get_logger()
 
 
@@ -49,6 +55,7 @@ class Trainer(Runner):
         self.wandb_log = wandb_log
         self.reset(checkpt_dir)
         self.test_preprocess_hook = test_preprocess_hook
+        self.calculate_mean_std = False
 
         # create a model
         model_name = self.config["MODEL_NAME"]
@@ -59,6 +66,7 @@ class Trainer(Runner):
         if self.half:
             self.model.half()
         n_params = model_utils.count_model_params(self.model)
+        torch.save(self.model, os.path.join(self.dir_prefix, "init.pth"))
         logger.info(
             f"Created a model {self.config['MODEL_NAME']} with {(n_params / 10**6):.2f}M params"
         )
@@ -66,36 +74,71 @@ class Trainer(Runner):
         logger.info("Setup train configuration")
         self.setup_train_configuration(self.config)
 
+        # change this if you want another acc metric for the best
+        # {"precision", "f1mean"}
+        self.acc_metric = self.config["BEST_ACC_METRIC"]
+
         # create logger
         if wandb_log:
             wandb.init(**wandb_init_params)
 
         self.n_correct_epoch: DefaultDict[str, int] = defaultdict(lambda: 0)
+        self.labels_stat: DefaultDict[str, List[int]] = defaultdict(lambda: [])
+        self.preds_stat: DefaultDict[str, List[int]] = defaultdict(lambda: [])
 
     def setup_train_configuration(self, config: Dict[str, Any]) -> None:
         """Setup train configuration."""
         self.config = config
         self.total_epochs = self.config["EPOCHS"]
         # get datasets
-        trainset, testset = utils.get_dataset(
+        trainsets, testsets = utils.get_dataset(
             config["DATASET"],
             config["AUG_TRAIN"],
             config["AUG_TEST"],
             config["AUG_TRAIN_PARAMS"],
+            config["AUG_TEST_PARAMS"],
         )
-        logger.info("Dataset prepared")
+        logger.info("Datasets prepared")
+
+        # calculate data mean, std
+        if self.calculate_mean_std:
+            logger.info("Calculating trainsets' mean and std")
+            combined_dataset = data.ConcatDataset(trainsets)
+            mean, std, n_img, n_cnt = (
+                torch.zeros(3),
+                torch.zeros(3),
+                len(combined_dataset),
+                0,
+            )
+            for img, _ in combined_dataset:
+                img = img.view((3, -1))
+                mean += img.mean(1) / n_img
+                std += img.std(1) / n_img
+                n_cnt += 1
+                if n_cnt % (n_img // 100) == 0:
+                    logger.info(
+                        f"Mean/Std calculation: {n_cnt} / {n_img} images processed"
+                    )
+            logger.info(f"{n_img} train data's MEAN: {mean}, STD: {std}")
 
         # transform the training dataset for CutMix augmentation
         if "CUTMIX" in config:
-            trainset = CutMix(
-                trainset, config["MODEL_PARAMS"]["num_classes"], **config["CUTMIX"],
-            )
+            for t in trainsets:
+                t = CutMix(
+                    t, config["MODEL_PARAMS"]["num_classes"], **config["CUTMIX"],
+                )
 
         # get dataloaders
-        self.trainloader, self.testloader = utils.get_dataloader(
-            trainset, testset, config["BATCH_SIZE"], config["N_WORKERS"],
+        self.trainloaders, self.testloaders = utils.get_dataloader(
+            trainsets,
+            testsets,
+            config["BATCH_SIZE"],
+            config["N_WORKERS"],
+            config["MULTI_DATALOADER_CONFIG"]
+            if "MULTI_DATALOADER_CONFIG" in config
+            else None,
         )
-        self.input_size = trainset[0][0].size()
+        self.input_size = trainsets[0][0][0].size()
         logger.info("Dataloader prepared")
 
         # define criterion and optimizer
@@ -172,16 +215,22 @@ class Trainer(Runner):
         self.lr_scheduler(self.optimizer, epoch)
 
         # train
-        train_loss, train_acc = self.train_one_epoch()
+        train_loss, train_stat = self.train_one_epoch()
 
         # test
-        test_loss, test_acc = self.test_one_epoch()
+        test_loss, test_stat = self.test_one_epoch()
 
-        # save model
-        if test_acc["model_acc"] > self.best_acc:
-            self.best_acc = test_acc["model_acc"]
+        # save all params that showed the best acc
+        test_acc = test_stat["model_" + self.acc_metric]
+        if test_acc > self.best_acc:
+            self.best_acc = test_acc
             filename = str(epoch) + "_" + f"{self.best_acc:.2f}".replace(".", "_")
-            self.save_params(self.model_save_dir, filename, epoch, self.best_acc)
+            self.save_params(self.model_save_dir, filename, epoch, test_acc)
+
+        # save the model every epoch
+        model_path = os.path.join(self.model_save_dir, f"{epoch}.pth")
+        logger.info(f"Saved model as {model_path}")
+        torch.save(self.model, model_path)
 
         # log
         if not extra_log_info:
@@ -190,10 +239,10 @@ class Trainer(Runner):
         log_info: List[Tuple[str, float, Callable[[float], str]]] = []
         log_info.append(("train/lr", lr, default_format))
         log_info.append(("train/loss", train_loss, default_format))
-        log_info += [("train/" + k, v, percent_format) for k, v in train_acc.items()]
+        log_info += [("train/" + k, v, percent_format) for k, v in train_stat.items()]
         log_info.append(("test/loss", test_loss, default_format))
-        log_info += [("test/" + k, v, percent_format) for k, v in test_acc.items()]
-        log_info.append(("test/best_acc", self.best_acc, percent_format))
+        log_info += [("test/" + k, v, percent_format) for k, v in test_stat.items()]
+        log_info.append(("test/best_" + self.acc_metric, self.best_acc, percent_format))
         self.log_one_epoch(epoch, log_info + extra_log_info)
 
     def log_one_epoch(
@@ -219,26 +268,63 @@ class Trainer(Runner):
             _, predicted = torch.max(F.softmax(logit, dim=1).data, 1)
             n_correct = int((predicted == labels).sum().cpu())
             self.n_correct_epoch[module_name] += n_correct
+            self.labels_stat[module_name] += labels.clone().detach().tolist()
+            self.preds_stat[module_name] += predicted.clone().detach().tolist()
 
-    def get_epoch_accuracy(self, is_test: bool = False) -> Dict[str, float]:
-        """Get accuracy and reset statistics."""
-        acc = dict()
+    def get_epoch_statistics(self, is_test: bool = False) -> Dict[str, float]:
+        """Get accuracy, f1_score, cofusion matrix, and then reset statistics."""
+        stat = dict()
         n_total = (
-            len(self.testloader.dataset) if is_test else len(self.trainloader.dataset)
-        )
+            self.get_datalen(self.testloaders)
+            if is_test
+            else self.get_datalen(self.trainloaders)
+        )  # hardcode
         for module_name in self.n_correct_epoch:
-            accuracy = 100 * self.n_correct_epoch[module_name] / n_total
-            acc.update({module_name + "_acc": accuracy})
+            precision = 100 * self.n_correct_epoch[module_name] / n_total
+            stat.update({module_name + "_precision": precision})
+
+            f1_score_multi = f1_score(
+                self.labels_stat[module_name],
+                self.preds_stat[module_name],
+                average=None,
+            )
+            f1_mean = 100.0 * gmean(f1_score_multi)
+            # conf_mat = confusion_matrix(self.labels_stat[module_name],
+            # self.preds_stat[module_name])
+            stat.update({module_name + "_f1mean": f1_mean})
+            # self.plotter.plot_conf_mat(conf_mat, module_name, is_test)
         self.n_correct_epoch.clear()
-        return acc
+        self.labels_stat.clear()
+        self.preds_stat.clear()
+
+        return stat
+
+    def get_datalen(self, loaders: List[data.DataLoader]) -> int:
+        len_ = []
+        for ld in loaders:
+            if hasattr(ld, "sampler"):
+                len_.append(len(ld.sampler))  # type: ignore
+            else:
+                len_.append(len(ld.dataset))
+
+        return sum(len_)
 
     def train_one_epoch(self) -> Tuple[float, Dict[str, float]]:
         """Train one epoch."""
         losses = []
         self.model.train()
-        for data in progressbar(self.trainloader, prefix="[Train]\t"):
+        # trainloaders contain same length(iteration) of batch dataset
+        for data_list in itertools.zip_longest(
+            progressbar(*self.trainloaders, prefix="[Train]\t")
+        ):
             # get the inputs; data is a list of [inputs, labels]
-            images, labels = data[0].to(self.device), data[1].to(self.device)
+            image_list = []
+            label_list = []
+            for i in data_list:
+                image_list.append(i[0])
+                label_list.append(i[1])
+            images = torch.cat(image_list).to(self.device)
+            labels = torch.cat(label_list).to(self.device)
             if self.half:
                 images = images.half()
             # zero the parameter gradients
@@ -255,7 +341,7 @@ class Trainer(Runner):
             losses.append(loss.item())
 
         avg_loss = sum(losses) / len(losses)
-        acc = self.get_epoch_accuracy()
+        acc = self.get_epoch_statistics()
         return avg_loss, acc
 
     def test_one_epoch(self) -> Tuple[float, Dict[str, float]]:
@@ -270,8 +356,17 @@ class Trainer(Runner):
         """Test the input model."""
         losses = []
         model.eval()
-        for data in progressbar(self.testloader, prefix="[Test]\t"):
-            images, labels = data[0].to(self.device), data[1].to(self.device)
+        # testloaders contain same length(iteration) of batch dataset
+        for data_list in itertools.zip_longest(
+            progressbar(*self.testloaders, prefix="[Test]\t")
+        ):
+            image_list = []
+            label_list = []
+            for i in data_list:
+                image_list.append(i[0])
+                label_list.append(i[1])
+            images = torch.cat(image_list).to(self.device)
+            labels = torch.cat(label_list).to(self.device)
             if self.half:
                 images = images.half()
 
@@ -283,15 +378,18 @@ class Trainer(Runner):
             losses.append(loss.item())
 
         avg_loss = sum(losses) / len(losses)
-        acc = self.get_epoch_accuracy(is_test=True)
+        acc = self.get_epoch_statistics(is_test=True)
         return avg_loss, acc
 
     @torch.no_grad()
     def warmup_one_iter(self) -> None:
         """Run one iter for wramup."""
         self.model.eval()
-        for data in self.testloader:
-            images, labels = data[0].to(self.device), data[1].to(self.device)
+        for batch_data in self.testloaders[0]:
+            images, labels = (
+                batch_data[0].to(self.device),
+                batch_data[1].to(self.device),
+            )
 
             # forward + backward + optimize
             loss, outputs = self.criterion(
@@ -313,13 +411,11 @@ class Trainer(Runner):
             "optimizer": self.optimizer.state_dict(),
             "test_acc": test_acc,
         }
-        torch.save(self.model, os.path.join(self.dir_prefix, "best.pth"))
-        logger.info(f"Saved the best model in {self.dir_prefix}")
 
         filepath = os.path.join(model_path, f"{filename}.{self.fileext}")
         torch.save(params, filepath)
         logger.info(
-            f"Saved model in {model_path}{os.path.sep}{filename}.{self.fileext}"
+            f"Saved all params in {model_path}{os.path.sep}{filename}.{self.fileext}"
         )
 
         if record_path:
