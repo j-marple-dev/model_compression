@@ -6,12 +6,12 @@
 """
 
 from collections import defaultdict
-import itertools
 import os
 from typing import Any, Callable, DefaultDict, Dict, List, Tuple
 
+import pandas as pd
 from progressbar import progressbar
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, precision_score, recall_score
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -27,8 +27,6 @@ from src.regularizers import get_regularizer
 from src.runners.runner import Runner
 import src.utils as utils
 
-# from src.plotter import Plotter
-# from sklearn.metrics import confusion_matrix, f1_score
 logger = utils.get_logger()
 
 
@@ -72,7 +70,7 @@ class Trainer(Runner):
         self.setup_train_configuration(self.config)
 
         # change this if you want another acc metric for the best
-        # {"precision", "f1mean"}
+        # {"precision", "recall", "f1"}
         self.acc_metric = self.config["BEST_ACC_METRIC"]
 
         # create logger
@@ -111,6 +109,14 @@ class Trainer(Runner):
         )
         logger.info("Dataloader prepared")
 
+        self.test_img_paths = dict()
+        # get image file path (ImageFolder only)
+        if hasattr(testset, "samples"):
+            n_testset = len(testset)
+            self.test_img_paths = {
+                "paths": [testset.samples[idx][0] for idx in range(n_testset)]
+            }
+
         # define criterion and optimizer
         self.criterion = get_criterion(
             criterion_name=config["CRITERION"],
@@ -141,6 +147,7 @@ class Trainer(Runner):
         """Reset the configurations."""
         self.checkpt_dir = checkpt_dir
         self.best_acc = 0.0
+        self.epoch = 0
 
         # best model path
         self.model_save_dir = os.path.join(self.dir_prefix, checkpt_dir)
@@ -173,8 +180,8 @@ class Trainer(Runner):
         if resume_info_path:
             start_epoch = self.resume()
 
-        for epoch in range(start_epoch, self.config["EPOCHS"]):
-            self.run_one_epoch(epoch)
+        for self.epoch in range(start_epoch, self.config["EPOCHS"]):
+            self.run_one_epoch(self.epoch)
 
     def run_one_epoch(
         self,
@@ -244,28 +251,56 @@ class Trainer(Runner):
     def get_epoch_statistics(self, is_test: bool = False) -> Dict[str, float]:
         """Get accuracy, f1_score, cofusion matrix, and then reset statistics."""
         stat = dict()
-        n_total = (
-            len(self.testloader.dataset) if is_test else len(self.trainloader.dataset)
-        )
         for module_name in self.n_correct_epoch:
-            precision = 100 * self.n_correct_epoch[module_name] / n_total
-            stat.update({module_name + "_precision": precision})
-
-            f1_score_multi = f1_score(
+            precision = precision_score(
                 self.labels_stat[module_name],
                 self.preds_stat[module_name],
                 average="macro",
-            )
-            f1_mean = 100.0 * f1_score_multi.mean()
-            # conf_mat = confusion_matrix(self.labels_stat[module_name],
-            # self.preds_stat[module_name])
-            stat.update({module_name + "_f1mean": f1_mean})
-            # self.plotter.plot_conf_mat(conf_mat, module_name, is_test)
+            ).mean()
+            precision *= 100
+            recall = recall_score(
+                self.labels_stat[module_name],
+                self.preds_stat[module_name],
+                average="macro",
+            ).mean()
+            recall *= 100
+            f1 = f1_score(
+                self.labels_stat[module_name],
+                self.preds_stat[module_name],
+                average="macro",
+            ).mean()
+            f1 *= 100
+            stat.update({module_name + "_recall": recall})
+            stat.update({module_name + "_precision": precision})
+            stat.update({module_name + "_f1": f1})
         self.n_correct_epoch.clear()
         self.labels_stat.clear()
         self.preds_stat.clear()
 
         return stat
+
+    def save_inference_results_csv(self) -> None:
+        """Save inference results at test."""
+        for module_name in self.preds_stat:
+            # columns: img_paths / labels / predictions
+            if self.test_img_paths:
+                test_results = self.test_img_paths
+            else:
+                test_results = dict()
+            test_results.update(
+                dict(
+                    labels=self.labels_stat[module_name],
+                    preds=self.preds_stat[module_name],
+                )
+            )
+
+            # create a csv file
+            df = pd.DataFrame(test_results)
+            filename = os.path.join(
+                self.model_save_dir, f"{self.epoch}_" + module_name + "_pred"
+            )
+            filename += ".csv"
+            df.to_csv(filename)
 
     def train_one_epoch(self) -> Tuple[float, Dict[str, float]]:
         """Train one epoch."""
@@ -322,6 +357,7 @@ class Trainer(Runner):
             losses.append(loss.item())
 
         avg_loss = sum(losses) / len(losses)
+        self.save_inference_results_csv()
         acc = self.get_epoch_statistics(is_test=True)
         return avg_loss, acc
 

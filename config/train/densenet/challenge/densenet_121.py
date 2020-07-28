@@ -15,7 +15,7 @@ config.update(
         "AUG_TRAIN_PARAMS": dict(n_select=2, level=None, image_size=112),
         "AUG_TEST": "simple_augment_test_ai_challenge",
         "AUG_TEST_PARAMS": dict(image_size=112),
-        "BEST_ACC_METRIC": "f1mean",
+        "BEST_ACC_METRIC": "f1",
         "CUTMIX": dict(beta=1, prob=0.5),
         "DATASET": "AI_CHALLENGE",
         "MODEL_NAME": "densenet",
