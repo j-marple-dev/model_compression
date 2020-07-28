@@ -176,17 +176,10 @@ def get_dataloader(
                     **train_args,
                 )
             )
-            # testloader created as same
-            # temporaily drop test
-            test_length = int(0.01 * len(test))
-            abandon_length = len(test) - test_length
 
-            test_, _ = torch.utils.data.random_split(  # type: ignore
-                test, [test_length, abandon_length]  # type: ignore
-            )  # type: ignore
             testloaders.append(
                 data.DataLoader(
-                    test_,
+                    test,
                     batch_size=batch_size,
                     shuffle=False,
                     pin_memory=(torch.cuda.is_available()),
