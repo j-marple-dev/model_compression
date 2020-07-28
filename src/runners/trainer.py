@@ -39,6 +39,7 @@ class Trainer(Runner):
         config: Dict[str, Any],
         dir_prefix: str,
         checkpt_dir: str,
+        finetune: str,
         wandb_log: bool,
         wandb_init_params: Dict[str, Any],
         device: torch.device,
@@ -64,6 +65,12 @@ class Trainer(Runner):
         self.model = model_utils.get_model(model_name, model_config).to(self.device)
         if device == torch.device("cuda"):  # multi-gpu
             self.model = torch.nn.DataParallel(self.model).to(self.device)
+
+        # load a model to finetune
+        if finetune and os.path.exists(finetune):
+            logger.info(f"Load a model to finetune from {finetune}")
+            self.model.load_state_dict(torch.load(finetune))
+
         if self.half:
             self.model.half()
         n_params = model_utils.count_model_params(self.model)
