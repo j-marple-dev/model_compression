@@ -15,7 +15,8 @@ from src.augmentation.methods import (
 from src.augmentation.transforms import FILLCOLOR
 
 CIFAR100_INFO = {"MEAN": (0.5071, 0.4865, 0.4409), "STD": (0.2673, 0.2564, 0.2762)}
-CHALLENGE_INFO = {"MEAN": (0.4825, 0.3558, 0.4421), "STD": (0.6947, 0.7027, 0.6498)}
+IMAGENET_INFO = {"MEAN": (0.485, 0.456, 0.406), "STD": (0.229, 0.224, 0.225)}
+CHALLENGE_INFO = {"MEAN": (0.0678, 0.2116, 0.0865), "STD": (0.2154, 0.1879, 0.2017)}
 
 
 def simple_augment_train_cifar100() -> transforms.Compose:
