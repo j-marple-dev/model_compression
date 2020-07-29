@@ -7,7 +7,6 @@
 
 
 import os
-import time
 from typing import Any, Dict
 
 import torch
@@ -27,19 +26,6 @@ def print_datatypes(model: nn.Module, model_name: str, sep: str = "\n") -> None:
     log = model_name + "'s datatypes:" + sep
     log += sep.join(str(t) for t in model_utils.get_model_tensor_datatype(model))
     logger.info(log)
-
-
-def estimate_acc_size(model: nn.Module, trainer: Trainer) -> None:
-    """Estimate the model's performance."""
-    s = time.time()
-    _, acc = trainer.test_one_epoch_model(model)
-    inf_time = (time.time() - s) / len(trainer.testloader.dataset)
-    size = model_utils.get_model_size_mb(model)
-    logger.info(
-        f"Acc: {acc['model_acc']:.2f} %\t"
-        f"Size: {size:.6f} MB\t"
-        f"Avg. Inference Time: {inf_time * 1000:.6f} ms"
-    )
 
 
 class Quantizer(Runner):
@@ -69,9 +55,9 @@ class Quantizer(Runner):
             config=self.config,
             dir_prefix=dir_prefix,
             checkpt_dir="qat",
+            device="cpu",
             wandb_log=wandb_log,
             wandb_init_params=wandb_init_params,
-            device="cpu",
             test_preprocess_hook=self._quantize,
         )
 
@@ -121,7 +107,7 @@ class Quantizer(Runner):
         quantized_model = self._quantize(self.model)
         if self.check_acc:
             _, acc = self.trainer.test_one_epoch()
-            acc = f"{acc['model_acc']:.2f}"
+            acc = f"{acc['model_' + self.trainer.acc_metric]:.2f}"
         else:
             self.trainer.warmup_one_iter()
             acc = "None"
@@ -136,7 +122,7 @@ class Quantizer(Runner):
 
         if self.check_acc:
             _, acc = self.trainer.test_one_epoch_model(scripted_model)
-            acc = f"{acc['model_acc']:.2f}"
+            acc = f"{acc['model_' + self.trainer.acc_metric]:.2f}"
         else:
             self.trainer.warmup_one_iter()
             acc = "None"

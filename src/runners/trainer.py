@@ -39,10 +39,10 @@ class Trainer(Runner):
         config: Dict[str, Any],
         dir_prefix: str,
         checkpt_dir: str,
-        finetune: str,
-        wandb_log: bool,
-        wandb_init_params: Dict[str, Any],
         device: torch.device,
+        finetune: str = "",
+        wandb_log: bool = False,
+        wandb_init_params: Dict[str, Any] = None,
         plotter: Plotter = None,
         half: bool = False,
         test_preprocess_hook: Callable[[nn.Module], nn.Module] = None,
@@ -386,7 +386,7 @@ class Trainer(Runner):
     def warmup_one_iter(self) -> None:
         """Run one iter for wramup."""
         self.model.eval()
-        for batch_data in self.testloaders[0]:
+        for batch_data in self.testloader:
             images, labels = (
                 batch_data[0].to(self.device),
                 batch_data[1].to(self.device),
