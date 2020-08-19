@@ -5,7 +5,7 @@
 - Email: jwpark@jmarple.ai
 """
 
-from config.train.mixnet.cifar100 import micronet
+from config.train.cifar100 import micronet
 
 config = micronet.config
 config.update(

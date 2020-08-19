@@ -23,6 +23,6 @@ config = {
     "MOMENTUM": 0.9,
     "WEIGHT_DECAY": 1e-4,
     "NESTEROV": True,
-    "EPOCHS": 40,
+    "EPOCHS": 5,
     "N_WORKERS": os.cpu_count(),
 }

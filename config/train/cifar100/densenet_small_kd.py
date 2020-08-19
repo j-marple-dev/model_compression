@@ -5,7 +5,7 @@
 - Email: jhkim@jmarple.ai
 """
 
-from config.train.densenet.cifar100 import densenet_small
+from config.train.cifar100 import densenet_small
 
 config = densenet_small.config
 config_override = {

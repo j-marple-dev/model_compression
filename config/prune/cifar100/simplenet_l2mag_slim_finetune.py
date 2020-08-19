@@ -5,7 +5,7 @@
 - Email: jwpark@jmarple.ai
 """
 
-from config.train.simplenet.cifar100 import simplenet, simplenet_finetune
+from config.train.cifar100 import simplenet, simplenet_finetune
 
 regularizer_params = {
     "REGULARIZER": "BnWeight",

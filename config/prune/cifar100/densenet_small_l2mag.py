@@ -5,13 +5,12 @@
 - Email: jhkim@jmarple.ai
 """
 
-from config.train.densenet.cifar100 import densenet_small
+from config.train.cifar100 import densenet_small
 
 train_config = densenet_small.config
 config = {
     "TRAIN_CONFIG": train_config,
     "N_PRUNING_ITER": 15,
-    "EPOCHS": 300,
     "PRUNE_METHOD": "Magnitude",
     "PRUNE_PARAMS": dict(
         PRUNE_AMOUNT=0.2,

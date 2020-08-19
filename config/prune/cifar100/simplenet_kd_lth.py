@@ -5,12 +5,11 @@
 - Email: jhkim@jmarple.ai
 """
 
-from config.train.simplenet.cifar100 import simplenet_kd
+from config.train.cifar100 import simplenet_kd
 
 config = {
     "TRAIN_CONFIG": simplenet_kd.config,
     "N_PRUNING_ITER": 15,
-    "EPOCHS": 5,
     "PRUNE_METHOD": "LotteryTicketHypothesis",
     "PRUNE_PARAMS": dict(
         PRUNE_AMOUNT=0.2, STORE_PARAM_BEFORE=20, PRUNE_START_FROM=0, PRUNE_AT_BEST=False

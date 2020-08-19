@@ -34,9 +34,12 @@ RUN curl -sLo ~/miniconda.sh https://repo.continuum.io/miniconda/Miniconda3-py37
  && conda install -y python==3.7 \
  && conda clean -ya
 
-# CUDA 10.2-specific steps
+# CUDA 10.2-specific steps and required library settings
 RUN conda install pytorch torchvision cudatoolkit=10.2 -c pytorch \
+ && conda install -c conda-forge progressbar2 \
  && conda clean -ya
+COPY requirements.txt $HOME/
+RUN pip install -r $HOME/requirements.txt
 
 # Set the default command to python3
 CMD ["python3"]

@@ -63,28 +63,27 @@ def get_dataset(
     transform_train: str = "simple_augment_train_cifar100",
     transform_test: str = "simple_augment_test_cifar100",
     transform_train_params: Dict[str, int] = None,
+    transform_test_params: Dict[str, int] = None,
 ) -> Tuple[VisionDataset, VisionDataset]:
     """Get dataset for training and testing."""
     if not transform_train_params:
         transform_train_params = dict()
 
-    # dataset
-    dataset = getattr(__import__("torchvision.datasets", fromlist=[""]), dataset_name)
-
-    # train dataset
+    # preprocessing policies
     transform_train = getattr(
         __import__("src.augmentation.policies", fromlist=[""]), transform_train,
     )(**transform_train_params)
-    trainset = dataset(
-        root="save/data", train=True, download=True, transform=transform_train,
-    )
-
-    # test dataset
     transform_test = getattr(
         __import__("src.augmentation.policies", fromlist=[""]), transform_test,
-    )()
-    testset = dataset(
-        root="save/data", train=False, download=False, transform=transform_test,
+    )(**transform_test_params)
+
+    # pytorch dataset
+    Dataset = getattr(__import__("torchvision.datasets", fromlist=[""]), dataset_name)
+    trainset = Dataset(
+        root="save/data", train=True, download=True, transform=transform_train
+    )
+    testset = Dataset(
+        root="save/data", train=False, download=False, transform=transform_test
     )
 
     return trainset, testset
@@ -96,17 +95,17 @@ def get_dataloader(
     """Get dataloader for training and testing."""
     trainloader = data.DataLoader(
         trainset,
-        batch_size=batch_size,
-        shuffle=True,
         pin_memory=(torch.cuda.is_available()),
         num_workers=n_workers,
+        shuffle=True,
+        batch_size=batch_size,
     )
     testloader = data.DataLoader(
         testset,
-        batch_size=batch_size,
-        shuffle=False,
         pin_memory=(torch.cuda.is_available()),
         num_workers=n_workers,
+        shuffle=False,
+        batch_size=batch_size,
     )
     return trainloader, testloader
 

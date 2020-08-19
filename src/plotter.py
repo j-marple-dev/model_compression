@@ -11,6 +11,7 @@ from typing import List, NamedTuple, Sequence, Tuple, Union
 import PIL.Image
 import matplotlib.axes
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FixedLocator
 import numpy as np
 import torch
 import torch.nn as nn
@@ -46,6 +47,31 @@ class Plotter:
         self.rightmargin = 0.2
         self.wandb_log = wandb_log
         self.total_sparsity = 0.0
+
+    def plot_conf_mat(self, conf_mat: np.ndarray, save_dir: str, epoch: int) -> None:
+        fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(1, 1, 1)
+        ax.matshow(conf_mat)
+        # Gridlines based on minor ticks
+        ax.xaxis.set_major_locator(FixedLocator(np.linspace(0, 41, 1)))
+        ax.yaxis.set_major_locator(FixedLocator(np.linspace(0, 41, 1)))
+
+        ax.grid(which="minor", color="w", linestyle="-", linewidth=2)
+        fig.savefig(save_dir + os.path.sep + str(epoch))
+        if self.wandb_log:
+            pil_image = PIL.Image.frombytes(
+                "RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb()
+            )
+            wandb.log(
+                {
+                    "Pruned/"
+                    + "confusion_matrix": [
+                        wandb.Image(pil_image, caption="Confusion matrix")
+                    ]
+                },
+                commit=False,
+            )
+        plt.close(fig)
 
     def plot(self, model: nn.Module, path: str) -> None:
         """Plot sparsity information and save into given path(and wandb if enabled)."""

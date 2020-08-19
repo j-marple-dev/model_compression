@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Configurations for quantization for densenet_small.
+"""Configurations for training densenet_121.
 
 - Author: Curt-Park
 - Email: jwpark@jmarple.ai
 """
 
-from config.train.densenet.cifar100 import densenet_small
+from config.train.cifar100 import densenet_121
 
-config = densenet_small.config
+config = densenet_121.config
 config.update(
     {
         "MODEL_NAME": "quant_densenet",

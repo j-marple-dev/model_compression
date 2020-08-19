@@ -5,7 +5,7 @@
 - Email: jhkim@jmarple.ai
 """
 
-from config.train.densenet.cifar100 import densenet_small, densenet_small_finetune
+from config.train.cifar100 import densenet_small, densenet_small_finetune
 
 regularizer_params = {
     "REGULARIZER": "BnWeight",

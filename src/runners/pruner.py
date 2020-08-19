@@ -46,17 +46,19 @@ class Pruner(Runner):
         self.init_params_path = ""
         self.device = device
 
+        self.plotter = Plotter(self.wandb_log)
+
         # create an initial model
         self.trainer = Trainer(
             config=self.config["TRAIN_CONFIG"],
             dir_prefix=dir_prefix,
             checkpt_dir=self.pretrain_dir_name,
-            device=device,
             wandb_log=wandb_log,
             wandb_init_params=wandb_init_params,
+            device=device,
+            plotter=self.plotter,
         )
         self.model = self.trainer.model
-        self.plotter = Plotter(self.wandb_log)
 
         self.model_params = model_utils.get_params(
             self.model,

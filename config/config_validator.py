@@ -109,6 +109,11 @@ class TrainConfigValidator(ConfigValidator):
         else:
             self.config["AUG_TRAIN_PARAMS"] = dict()
 
+        if "AUG_TEST_PARAMS" in self.config:
+            assert isinstance(self.config["AUG_TEST_PARAMS"], dict)
+        else:
+            self.config["AUG_TEST_PARAMS"] = dict()
+
         self.check_criterion()
         self.check_lr_schedulers()
         self.check_regularizer()
@@ -127,6 +132,7 @@ class TrainConfigValidator(ConfigValidator):
         # Run criterion config check
         params: Dict[str, Any] = self.config["CRITERION_PARAMS"]
 
+        ce_params = None
         if self.config["CRITERION"] == "HintonKLD":
             assert "T" in params
             assert params["T"] > 0.0
@@ -141,8 +147,8 @@ class TrainConfigValidator(ConfigValidator):
             assert isinstance("teacher_model_name", str)
             assert "teacher_model_params" in params
 
+            # if HintonLoss contains crossentropy
             assert "crossentropy_params" in params
-            # Hintonloss contains crossentropy
             ce_params = params["crossentropy_params"]
 
         elif self.config["CRITERION"] == "CrossEntropy":

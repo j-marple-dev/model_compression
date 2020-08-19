@@ -5,7 +5,7 @@
 - Email: jwpark@jmarple.ai
 """
 
-from config.train.mixnet.cifar100 import mixnet_l
+from config.train.cifar100 import mixnet_l
 
 train_config = mixnet_l.config
 train_config.update(
@@ -18,7 +18,6 @@ train_config.update(
 config = {
     "TRAIN_CONFIG": train_config,
     "N_PRUNING_ITER": 15,
-    "EPOCHS": 300,
     "PRUNE_METHOD": "NetworkSlimming",
     "PRUNE_PARAMS": dict(
         PRUNE_AMOUNT=0.2,

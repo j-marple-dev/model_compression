@@ -19,6 +19,12 @@ parser.add_argument(
     "--resume", type=str, default="", help="Input log directory name to resume"
 )
 parser.add_argument(
+    "--check-acc",
+    dest="check_acc",
+    action="store_true",
+    help="Check inference accuracy",
+)
+parser.add_argument(
     "--wlog", dest="wlog", action="store_true", help="Turns on wandb logging"
 )
 parser.add_argument(
@@ -32,6 +38,7 @@ parser.add_argument(
 )
 parser.add_argument("--config", type=str, help="Configuration path")
 parser.add_argument("--checkpoint", type=str, help="input checkpoint path to quantize")
+parser.set_defaults(check_acc=False)
 parser.set_defaults(wlog=False)
 parser.set_defaults(static=False)
 args = parser.parse_args()
@@ -56,6 +63,7 @@ quantizer = Quantizer(
     checkpoint_path=checkpoint_path,
     dir_prefix=dir_prefix,
     static=args.static,
+    check_acc=args.check_acc,
     backend=args.backend,
     wandb_log=args.wlog,
     wandb_init_params=wandb_init_params,
