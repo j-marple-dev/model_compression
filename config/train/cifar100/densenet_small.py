@@ -26,7 +26,7 @@ config = {
     "CRITERION_PARAMS": dict(num_classes=100, label_smoothing=0.1),
     "LR_SCHEDULER": "WarmupCosineLR",
     "LR_SCHEDULER_PARAMS": dict(
-        warmup_epochs=5, start_lr=1e-3, min_lr=1e-5, n_rewinding=1
+        warmup_epochs=10, start_lr=1e-3, min_lr=1e-5, n_rewinding=1
     ),
     "BATCH_SIZE": 64,
     "LR": 0.1,
