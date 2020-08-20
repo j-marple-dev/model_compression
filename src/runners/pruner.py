@@ -56,7 +56,6 @@ class Pruner(Runner):
             wandb_log=wandb_log,
             wandb_init_params=wandb_init_params,
             device=device,
-            plotter=self.plotter,
         )
         self.model = self.trainer.model
 
