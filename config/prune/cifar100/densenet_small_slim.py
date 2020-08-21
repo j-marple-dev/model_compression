@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Configurations for network slimming.
+"""Configurations for network slimming + L2 magnitude pruning.
 
-- Author: Curt-Park
-- Email: jwpark@jmarple.ai
+- Author: Junghoon Kim
+- Email: jhkim@jmarple.ai
 """
 
 from config.train.cifar100 import densenet_small
@@ -12,7 +12,7 @@ train_config.update({"REGULARIZER": "BnWeight", "REGULARIZER_PARAMS": dict(coeff
 config = {
     "TRAIN_CONFIG": train_config,
     "N_PRUNING_ITER": 15,
-    "PRUNE_METHOD": "NetworkSlimming",
+    "PRUNE_METHOD": "SlimMagnitude",
     "PRUNE_PARAMS": dict(
         PRUNE_AMOUNT=0.2,
         NORM=2,
