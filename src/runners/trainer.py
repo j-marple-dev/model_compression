@@ -60,8 +60,7 @@ class Trainer(Runner):
 
         # load a model to finetune
         if finetune and os.path.exists(finetune):
-            logger.info(f"Load a model to finetune from {finetune}")
-            self.model.load_state_dict(torch.load(finetune))
+            self.load_model(finetune)
 
         if self.half:
             self.model.half()
@@ -289,11 +288,7 @@ class Trainer(Runner):
             return None
 
     def save_params(
-        self,
-        model_path: str,
-        filename: str,
-        epoch: int,
-        record_path: bool = True,
+        self, model_path: str, filename: str, epoch: int, record_path: bool = True,
     ) -> None:
         """Save model."""
         params = {
@@ -313,6 +308,14 @@ class Trainer(Runner):
                 os.path.join(self.dir_prefix, self.checkpt_paths), "a"
             ) as checkpts:
                 checkpts.write(filepath + "\n")
+
+    def load_model(self, model_path: str, with_mask=True) -> None:
+        """Load weights and masks."""
+        checkpt = torch.load(model_path, map_location=self.device)
+        model_utils.initialize_params(
+            self.model, checkpt["state_dict"], with_mask=with_mask
+        )
+        logger.info(f"Loaded the model from {model_path}")
 
     def load_params(self, model_path: str, with_mask=True) -> None:
         """Load weights and masks."""

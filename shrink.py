@@ -14,7 +14,7 @@ from src.runners import initialize
 from src.runners.shrinker import Shrinker
 
 # arguments
-parser = argparse.ArgumentParser(description="Model shrink.")
+parser = argparse.ArgumentParser(description="Model shrinker.")
 parser.add_argument("--gpu", default=0, type=int, help="GPU id to use")
 parser.add_argument("--checkpoint", type=str, help="input checkpoint path to quantize")
 parser.add_argument("--config", type=str, help="Pruning configuration path")

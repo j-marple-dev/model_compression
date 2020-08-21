@@ -356,7 +356,7 @@ class LotteryTicketHypothesisFC(LotteryTicketHypothesis):
 
 
 class ChannelwisePruning(Pruner):
-    """Layerwise pruning."""
+    """Channel-wise pruning."""
 
     def __init__(
         self,
@@ -610,7 +610,7 @@ class ChannelInfo(nn.Module):
 
 
 class Magnitude(ChannelwisePruning):
-    """Magnitude based layerwise pruning.
+    """Magnitude based channel-wise pruning.
 
     Set NORM in PRUNE_PARAMS, for type of norm.
     Possibly all types of norm that torch.norm supports.

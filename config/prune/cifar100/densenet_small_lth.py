@@ -7,7 +7,6 @@
 
 from config.train.cifar100 import densenet_small
 
-
 train_config = densenet_small.config
 config = {
     "TRAIN_CONFIG": train_config,
