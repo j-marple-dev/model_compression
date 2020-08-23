@@ -62,7 +62,7 @@ $ make test  # for linting
 #### Run training
 Training the model. Trainer supports the following options:
   - Basic Settings: batch size, epoch numbers, seed
-  - Stochastic Gradient Decent: momentum, weight decay, initial learning rate, nesterov momentum
+  - Stochastic Gradient Descent: momentum, weight decay, initial learning rate, nesterov momentum
   - Image Augmentation: [Autoaugment](https://arxiv.org/pdf/1805.09501.pdf), [Randaugment](https://arxiv.org/pdf/1909.13719.pdf), [CutMix](https://arxiv.org/pdf/1905.04899.pdf)
   - Loss: Cross Entropy + [Label Smoothing](https://arxiv.org/pdf/1906.02629.pdf), [Hinton Knowledge Distillation Loss](https://arxiv.org/pdf/1503.02531.pdf)
   - Learning Rate Scheduler: [Cosine Annealing](https://arxiv.org/abs/1608.03983) with Initial Warmups
@@ -86,6 +86,75 @@ optional arguments:
 
 $ python train.py --config path_to_config.py  # basic run
 $ python train.py --config path_to_config.py  --gpu 1 --resume checkpoint_dir_name # resume training on gpu 1
+```
+
+#### Config for training
+Config for training with following options:
+   - Basic Settings: BATCH_SIZE, EPOCHS, SEED, MODEL_NAME(src/models), MODEL_PARAMS, DATASET
+   - Stochatic Gradient descent: MOMENTUM, WEIGHT_DECAY, LR
+   - Image Augmentation: AUG_TRAIN(src/augmentation/policies.py), AUG_TRAIN_PARAMS, AUG_TEST(src/augmentation/policies.py), CUTMIX
+   - Loss: CRITERION(src/criterions.py), CRITERION_PARAMS
+   - Learning Rate Scheduler: LR_SCHEDULER(src/lr_schedulers.py), LR_SCHEDULER_PARAMS
+
+```python
+# Example of train config(config/train/cifar/densenet_121.py)
+import os
+
+config = {
+    "SEED": 777,
+    "AUG_TRAIN": "randaugment_train_cifar100_224",
+    "AUG_TRAIN_PARAMS": dict(n_select=2, level=None),
+    "AUG_TEST": "simple_augment_test_cifar100_224",
+    "CUTMIX": dict(beta=1, prob=0.5),
+    "DATASET": "CIFAR100",
+    "MODEL_NAME": "densenet",
+    "MODEL_PARAMS": dict(
+        num_classes=100,
+        inplanes=24,
+        growthRate=32,
+        compressionRate=2,
+        block_configs=(6, 12, 24, 16),
+        small_input=False,
+        efficient=False,
+    ),
+    "CRITERION": "CrossEntropy", # CrossEntropy, HintonKLD
+    "CRITERION_PARAMS": dict(num_classes=100, label_smoothing=0.1),
+    "LR_SCHEDULER": "WarmupCosineLR", # WarmupCosineLR, Identity, MultiStepLR
+    "LR_SCHEDULER_PARAMS": dict(
+        warmup_epochs=5, start_lr=1e-3, min_lr=1e-5, n_rewinding=1
+    ),
+    "BATCH_SIZE": 128,
+    "LR": 0.1,
+    "MOMENTUM": 0.9,
+    "WEIGHT_DECAY": 1e-4,
+    "NESTEROV": True,
+    "EPOCHS": 300,
+    "N_WORKERS": os.cpu_count(),
+}
+```
+
+#### Config for pruning
+Config for pruning extends config from training(recommended) with following options:
+  - Basic Training Settings: TRAIN_CONFIG
+  - Pruning Settings: N_PRUNING_ITER, PRUNE_METHOD(src/runner/pruner.py), PRUNE_PARAMS
+
+```python
+# Example of prune config(config/prune/cifar100/densenet_small_l2mag.py)
+from config.train.cifar100 import densenet_small
+
+train_config = densenet_small.config
+config = {
+    "TRAIN_CONFIG": train_config,
+    "N_PRUNING_ITER": 15,
+    "PRUNE_METHOD": "Magnitude", # LotteryTicketHypothesis, Magnitude, NetworkSlimming, SlimMagnitude
+    "PRUNE_PARAMS": dict(
+        PRUNE_AMOUNT=0.2,
+        NORM=2,
+        STORE_PARAM_BEFORE=train_config["EPOCHS"],
+        PRUNE_START_FROM=0,
+        PRUNE_AT_BEST=False,
+    ),
+}
 ```
 
 #### Run pruning
