@@ -133,29 +133,6 @@ config = {
 }
 ```
 
-#### Config for pruning
-Config for pruning extends config from training(recommended) with following options:
-  - Basic Training Settings: TRAIN_CONFIG
-  - Pruning Settings: N_PRUNING_ITER, PRUNE_METHOD(src/runner/pruner.py), PRUNE_PARAMS
-
-```python
-# Example of prune config(config/prune/cifar100/densenet_small_l2mag.py)
-from config.train.cifar100 import densenet_small
-
-train_config = densenet_small.config
-config = {
-    "TRAIN_CONFIG": train_config,
-    "N_PRUNING_ITER": 15,
-    "PRUNE_METHOD": "Magnitude", # LotteryTicketHypothesis, Magnitude, NetworkSlimming, SlimMagnitude
-    "PRUNE_PARAMS": dict(
-        PRUNE_AMOUNT=0.2,
-        NORM=2,
-        STORE_PARAM_BEFORE=train_config["EPOCHS"],
-        PRUNE_START_FROM=0,
-        PRUNE_AT_BEST=False,
-    ),
-}
-```
 
 #### Run pruning
 Pruning makes a model sparse. Pruner supports the following methods:
@@ -191,6 +168,30 @@ usage: prune.py [-h] [--gpu GPU] [--resume RESUME] [--wlog] [--config CONFIG]
 
 $ python prune.py --config path_to_config.py  # basic run
 $ python prune.py --config path_to_config.py --multi-gpu --wlog  # run on multi-gpu with wandb logging
+```
+
+#### Config for pruning
+Config for pruning extends config from training(recommended) with following options:
+  - Basic Training Settings: TRAIN_CONFIG
+  - Pruning Settings: N_PRUNING_ITER, PRUNE_METHOD(src/runner/pruner.py), PRUNE_PARAMS
+
+```python
+# Example of prune config(config/prune/cifar100/densenet_small_l2mag.py)
+from config.train.cifar100 import densenet_small
+
+train_config = densenet_small.config
+config = {
+    "TRAIN_CONFIG": train_config,
+    "N_PRUNING_ITER": 15,
+    "PRUNE_METHOD": "Magnitude", # LotteryTicketHypothesis, Magnitude, NetworkSlimming, SlimMagnitude
+    "PRUNE_PARAMS": dict(
+        PRUNE_AMOUNT=0.2,
+        NORM=2,
+        STORE_PARAM_BEFORE=train_config["EPOCHS"],
+        PRUNE_START_FROM=0,
+        PRUNE_AT_BEST=False,
+    ),
+}
 ```
 
 #### Run shrinking (Experimental)
