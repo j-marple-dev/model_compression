@@ -26,7 +26,7 @@ config = {
         PRUNE_AMOUNT=0.1,
         NORM=2,
         STORE_PARAM_BEFORE=20,
-        PRUNE_START_FROM=0,
+        TRAIN_START_FROM=0,
         PRUNE_AT_BEST=False,
     ),
 }

@@ -118,7 +118,7 @@ class Pruner(Runner):
                 self.save_init_params()
         # pruning
         else:
-            start_epoch = self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"]
+            start_epoch = self.config["PRUNE_PARAMS"]["TRAIN_START_FROM"]
             logger.info("Change train configuration for pruning.")
             if prune_iter == 0 or resumed:
                 self.trainer.setup_train_configuration(
@@ -567,9 +567,7 @@ class NetworkSlimming(ChannelwisePruning):
     def get_channelrepr_conv_bn(
         self,
     ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
-        """Get channel representive value - conv - bn tuple.
-           Check comments in ChannelwisePruning for detailed explanation.
-        """
+        """Get channel representive value - conv - bn tuple."""
         layers = [
             v for v in self.model.modules() if type(v) in (nn.Conv2d, nn.BatchNorm2d)
         ]

@@ -22,7 +22,7 @@ config = {
     "PRUNE_PARAMS": dict(
         PRUNE_AMOUNT=0.2,
         STORE_PARAM_BEFORE=300,
-        PRUNE_START_FROM=0,
+        TRAIN_START_FROM=0,
         PRUNE_AT_BEST=False,
     ),
 }

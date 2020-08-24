@@ -88,8 +88,8 @@ $ python train.py --config path_to_config.py  # basic run
 $ python train.py --config path_to_config.py  --gpu 1 --resume checkpoint_dir_name # resume training on gpu 1
 ```
 
-#### Config for training
-Config for training with following options:
+#### Configurations for training
+Following options are available:
    - Basic Settings: BATCH_SIZE, EPOCHS, SEED, MODEL_NAME(src/models), MODEL_PARAMS, DATASET
    - Stochatic Gradient descent: MOMENTUM, WEIGHT_DECAY, LR
    - Image Augmentation: AUG_TRAIN(src/augmentation/policies.py), AUG_TRAIN_PARAMS, AUG_TEST(src/augmentation/policies.py), CUTMIX
@@ -170,8 +170,8 @@ $ python prune.py --config path_to_config.py  # basic run
 $ python prune.py --config path_to_config.py --multi-gpu --wlog  # run on multi-gpu with wandb logging
 ```
 
-#### Config for pruning
-Config for pruning extends config from training(recommended) with following options:
+#### Configurations for pruning
+Pruning configuration extends training configuration (recommended) with following options:
   - Basic Training Settings: TRAIN_CONFIG
   - Pruning Settings: N_PRUNING_ITER, PRUNE_METHOD(src/runner/pruner.py), PRUNE_PARAMS
 
@@ -185,11 +185,12 @@ config = {
     "N_PRUNING_ITER": 15,
     "PRUNE_METHOD": "Magnitude", # LotteryTicketHypothesis, Magnitude, NetworkSlimming, SlimMagnitude
     "PRUNE_PARAMS": dict(
-        PRUNE_AMOUNT=0.2,
+        PRUNE_AMOUNT=0.2,  # it iteratively prunes 20% of the network parameters at the end of training
         NORM=2,
-        STORE_PARAM_BEFORE=train_config["EPOCHS"],
-        PRUNE_START_FROM=0,
-        PRUNE_AT_BEST=False,
+        STORE_PARAM_BEFORE=train_config["EPOCHS"],  # used for weight initialization at every pruning iteration
+        TRAIN_START_FROM=0,  # training starts from this epoch
+        PRUNE_AT_BEST=False,  # if True, it prunes parameters at the trained network which achieves the best accuracy
+                              # otherwise, it prunes the network at the end of training
     ),
 }
 ```
@@ -274,7 +275,7 @@ TODO
 
 ## Class Diagram
 
-<img width="671" alt="class_diagram" src="https://user-images.githubusercontent.com/14961526/90956407-5ab73a80-e4c1-11ea-8d71-f78b8b997a01.png">
+<img width="671" alt="class_diagram" src="https://user-images.githubusercontent.com/25141842/90982522-80684080-e5a2-11ea-812c-a2395caf9826.png">
 
 
 ## References
