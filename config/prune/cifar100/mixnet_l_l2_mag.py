@@ -16,8 +16,8 @@ config = {
     "PRUNE_PARAMS": dict(
         PRUNE_AMOUNT=0.2,
         NORM=2,
-        STORE_PARAM_BEFORE=300,
-        PRUNE_START_FROM=0,
+        STORE_PARAM_BEFORE=train_config["EPOCHS"],
+        TRAIN_START_FROM=0,
         PRUNE_AT_BEST=False,
     ),
 }

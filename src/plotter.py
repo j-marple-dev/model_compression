@@ -49,6 +49,7 @@ class Plotter:
         self.total_sparsity = 0.0
 
     def plot_conf_mat(self, conf_mat: np.ndarray, save_dir: str, epoch: int) -> None:
+        """Save a confusion matrix as an image."""
         fig = plt.figure(figsize=(10, 10))
         ax = fig.add_subplot(1, 1, 1)
         ax.matshow(conf_mat)

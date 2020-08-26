@@ -15,9 +15,14 @@ from src.runners.trainer import Trainer
 parser = argparse.ArgumentParser(description="Model trainer.")
 parser.add_argument("--multi-gpu", action="store_true", help="Multi-GPU use")
 parser.add_argument("--gpu", default=0, type=int, help="GPU id to use")
-parser.add_argument("--finetune", type=str, default="", help="Model path to finetune")
 parser.add_argument(
-    "--resume", type=str, default="", help="Input log directory name to resume"
+    "--finetune", type=str, default="", help="Model path to finetune (pth.tar)"
+)
+parser.add_argument(
+    "--resume",
+    type=str,
+    default="",
+    help="Input log directory name to resume in save/checkpoint",
 )
 parser.add_argument(
     "--half", dest="half", action="store_true", help="Use half precision"
@@ -26,7 +31,10 @@ parser.add_argument(
     "--wlog", dest="wlog", action="store_true", help="Turns on wandb logging"
 )
 parser.add_argument(
-    "--config", type=str, default="config/train/simplenet.py", help="Configuration path"
+    "--config",
+    type=str,
+    default="config/train/simplenet.py",
+    help="Configuration path (.py)",
 )
 parser.set_defaults(half=False)
 parser.set_defaults(multi_gpu=False)

@@ -21,7 +21,6 @@ from src.criterions import get_criterion
 from src.format import default_format, percent_format
 from src.lr_schedulers import get_lr_scheduler
 from src.models import utils as model_utils
-from src.plotter import Plotter
 from src.regularizers import get_regularizer
 from src.runners.runner import Runner
 import src.utils as utils
@@ -41,7 +40,6 @@ class Trainer(Runner):
         finetune: str = "",
         wandb_log: bool = False,
         wandb_init_params: Dict[str, Any] = None,
-        plotter: Plotter = None,
         half: bool = False,
         test_preprocess_hook: Callable[[nn.Module], nn.Module] = None,
     ) -> None:
@@ -52,10 +50,6 @@ class Trainer(Runner):
         self.wandb_log = wandb_log
         self.reset(checkpt_dir)
         self.test_preprocess_hook = test_preprocess_hook
-        if plotter is None:
-            self.plotter = Plotter(self.wandb_log)
-        else:
-            self.plotter = plotter
 
         # create a model
         model_name = self.config["MODEL_NAME"]
@@ -66,8 +60,7 @@ class Trainer(Runner):
 
         # load a model to finetune
         if finetune and os.path.exists(finetune):
-            logger.info(f"Load a model to finetune from {finetune}")
-            self.model.load_state_dict(torch.load(finetune))
+            self.load_model(finetune)
 
         if self.half:
             self.model.half()
@@ -192,7 +185,7 @@ class Trainer(Runner):
         if test_acc > self.best_acc:
             self.best_acc = test_acc
             filename = str(epoch) + "_" + f"{self.best_acc:.2f}".replace(".", "_")
-            self.save_params(self.model_save_dir, filename, epoch, test_acc)
+            self.save_params(self.model_save_dir, filename, epoch)
 
         # log
         if not extra_log_info:
@@ -224,6 +217,7 @@ class Trainer(Runner):
         """Train one epoch."""
         losses = []
         self.model.train()
+
         # trainloaders contain same length(iteration) of batch dataset
         for data in progressbar(self.trainloader, prefix="[Train]\t"):
             # get the inputs; data is a list of [inputs, labels]
@@ -238,14 +232,14 @@ class Trainer(Runner):
             loss, outputs = self.criterion(self.model, images=images, labels=labels)
             if self.regularizer:
                 loss += self.regularizer(self.model)
-            self.count_correct_prediction(outputs, labels)
+            self._count_correct_prediction(outputs, labels)
             loss.backward()
             self.optimizer.step()
 
             losses.append(loss.item())
 
         avg_loss = sum(losses) / len(losses)
-        acc = self.get_epoch_acc()
+        acc = self._get_epoch_acc()
         return avg_loss, acc
 
     def test_one_epoch(self) -> Tuple[float, Dict[str, float]]:
@@ -260,6 +254,7 @@ class Trainer(Runner):
         """Test the input model."""
         losses = []
         model.eval()
+
         # testloaders contain same length(iteration) of batch dataset
         for data in progressbar(self.testloader, prefix="[Test]\t"):
             images, labels = data[0].to(self.device), data[1].to(self.device)
@@ -269,13 +264,11 @@ class Trainer(Runner):
 
             # forward + backward + optimize
             loss, outputs = self.criterion(model, images=images, labels=labels)
-
-            self.count_correct_prediction(outputs, labels)
-
+            self._count_correct_prediction(outputs, labels)
             losses.append(loss.item())
 
         avg_loss = sum(losses) / len(losses)
-        acc = self.get_epoch_acc(is_test=True)
+        acc = self._get_epoch_acc(is_test=True)
         return avg_loss, acc
 
     @torch.no_grad()
@@ -295,18 +288,13 @@ class Trainer(Runner):
             return None
 
     def save_params(
-        self,
-        model_path: str,
-        filename: str,
-        epoch: int,
-        test_acc: float = 0.0,
-        record_path: bool = True,
+        self, model_path: str, filename: str, epoch: int, record_path: bool = True,
     ) -> None:
         """Save model."""
         params = {
             "state_dict": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
-            "test_acc": test_acc,
+            "test_acc": self.best_acc,
         }
 
         filepath = os.path.join(model_path, f"{filename}.{self.fileext}")
@@ -320,6 +308,14 @@ class Trainer(Runner):
                 os.path.join(self.dir_prefix, self.checkpt_paths), "a"
             ) as checkpts:
                 checkpts.write(filepath + "\n")
+
+    def load_model(self, model_path: str, with_mask=True) -> None:
+        """Load weights and masks."""
+        checkpt = torch.load(model_path, map_location=self.device)
+        model_utils.initialize_params(
+            self.model, checkpt["state_dict"], with_mask=with_mask
+        )
+        logger.info(f"Loaded the model from {model_path}")
 
     def load_params(self, model_path: str, with_mask=True) -> None:
         """Load weights and masks."""
@@ -341,7 +337,7 @@ class Trainer(Runner):
         """Load current best model."""
         self.resume()
 
-    def count_correct_prediction(
+    def _count_correct_prediction(
         self, logits: Dict[str, torch.Tensor], labels: torch.Tensor
     ) -> None:
         """Count correct prediction in one iteration."""
@@ -352,7 +348,7 @@ class Trainer(Runner):
             n_correct = int((predicted == labels).sum().cpu())
             self.n_correct_epoch[module_name] += n_correct
 
-    def get_epoch_acc(self, is_test: bool = False) -> Dict[str, float]:
+    def _get_epoch_acc(self, is_test: bool = False) -> Dict[str, float]:
         """Get accuracy and reset statistics."""
         n_total = (
             len(self.testloader.dataset) if is_test else len(self.trainloader.dataset)

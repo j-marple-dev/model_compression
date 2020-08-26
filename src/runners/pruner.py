@@ -56,7 +56,6 @@ class Pruner(Runner):
             wandb_log=wandb_log,
             wandb_init_params=wandb_init_params,
             device=device,
-            plotter=self.plotter,
         )
         self.model = self.trainer.model
 
@@ -119,7 +118,7 @@ class Pruner(Runner):
                 self.save_init_params()
         # pruning
         else:
-            start_epoch = self.config["PRUNE_PARAMS"]["PRUNE_START_FROM"]
+            start_epoch = self.config["PRUNE_PARAMS"]["TRAIN_START_FROM"]
             logger.info("Change train configuration for pruning.")
             if prune_iter == 0 or resumed:
                 self.trainer.setup_train_configuration(
@@ -330,34 +329,8 @@ class LotteryTicketHypothesis(Pruner):
         )
 
 
-class LotteryTicketHypothesisFC(LotteryTicketHypothesis):
-    """LTH on fc layer only.
-
-    References:
-        The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks
-        (https://arxiv.org/pdf/1803.03635.pdf)
-        Stabilizing the Lottery Ticket Hypothesis
-        (https://arxiv.org/pdf/1903.01611.pdf)
-        Comparing Rewinding and Fine-tuning in Neural Network Pruning
-        (https://arxiv.org/pdf/2003.02389.pdf)
-    """
-
-    def __init__(
-        self,
-        config: Dict[str, Any],
-        dir_prefix: str,
-        wandb_log: bool,
-        wandb_init_params: Dict[str, Any],
-        device: torch.device,
-    ) -> None:
-        """Initialize."""
-        super(LotteryTicketHypothesisFC, self).__init__(
-            config, dir_prefix, wandb_log, wandb_init_params, device
-        )
-
-
 class ChannelwisePruning(Pruner):
-    """Layerwise pruning."""
+    """Channel-wise pruning."""
 
     def __init__(
         self,
@@ -373,24 +346,36 @@ class ChannelwisePruning(Pruner):
         )
 
     @property
-    def channel_conv_bn(
+    def channelrepr_conv_bn(
         self,
     ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
-        """Create channel_conv when it is needed."""
-        if not hasattr(self, "_channel_conv_bn"):
-            self._channel_conv_bn = self.get_channel_conv_bn()
-        return self._channel_conv_bn
+        """Create channelrepr_conv_bn when it is needed."""
+        if not hasattr(self, "_channelrepr_conv_bn"):
+            self._channelrepr_conv_bn = self.get_channelrepr_conv_bn()
+        return self._channelrepr_conv_bn
 
     @abc.abstractmethod
-    def get_channel_conv_bn(
+    def get_channelrepr_conv_bn(
         self,
     ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
-        """Get channel - conv pair tuple."""
+        """Get channel representative value - conv - bn tuple.
+
+        Note:
+            channelrepr contains layer to calculate representative value
+                for channel-wise pruning.
+            conv, bn is corresponding layer to the layerrep.
+
+            For example, representative value is,
+                1) L2 magnitude: frobenius norm of output channel weight,
+                2) Network slimming: corresponding batchnorm weight.
+            In case of L2 magnitude, channelrepr is convlayer.
+            For network slimming, channelrepr is batchnorm layer.
+        """
         raise NotImplementedError
 
     def prune_params(self, prune_iter: int) -> None:
         """Apply prune."""
-        self.update_channel_data()
+        self.update_channel_representative()
         params_to_prune = self.drop_overly_pruned(prune_iter)
         self.prune_target_ratio(prune_iter, params_to_prune)
 
@@ -428,9 +413,9 @@ class ChannelwisePruning(Pruner):
         # Note: model must have nn.Flatten to get last conv shape info
         last_conv_shape = adjmodule_getter.last_conv_shape
 
-        for channel, conv, bn in self.channel_conv_bn:
+        for channelrepr, conv, bn in self.channelrepr_conv_bn:
             # Copy channel weight_mask to bias_mask
-            ch_buffers = {name: buf for name, buf in channel.named_buffers()}
+            ch_buffers = {name: buf for name, buf in channelrepr.named_buffers()}
             ch_mask = ch_buffers["weight_mask"].detach().clone()
             if "bias_mask" in ch_buffers:
                 ch_buffers["bias_mask"].set_(ch_mask)
@@ -553,25 +538,18 @@ class NetworkSlimming(ChannelwisePruning):
             config, dir_prefix, wandb_log, wandb_init_params, device
         )
 
-    def get_channel_conv_bn(
+    def get_channelrepr_conv_bn(
         self,
     ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
-        """Get channel - conv - bn tuple.
-
-        Note:
-            Channel contains a data for prune.
-            For example, frobenius norm in case of L2 magnitude,
-                         bn weight for network slimming.
-            In case of network slimming, channel is simply batchnorm.
-        """
+        """Get channel representive value - conv - bn tuple."""
         layers = [
             v for v in self.model.modules() if type(v) in (nn.Conv2d, nn.BatchNorm2d)
         ]
-        channel_conv_bn = []
+        channelrepr_conv_bn = []
         for i in range(1, len(layers)):
             if type(layers[i - 1]) is nn.Conv2d and type(layers[i]) is nn.BatchNorm2d:
-                channel_conv_bn.append((layers[i], layers[i - 1], layers[i]))
-        return tuple(channel_conv_bn)
+                channelrepr_conv_bn.append((layers[i], layers[i - 1], layers[i]))
+        return tuple(channelrepr_conv_bn)
 
     def get_params_to_prune(self) -> Tuple[Tuple[nn.Module, str], ...]:
         """Get parameters to prune."""
@@ -582,20 +560,22 @@ class NetworkSlimming(ChannelwisePruning):
         return tuple(
             (module, name)
             for (module, name) in all_bn_weights
-            if module in itertools.chain(*self.channel_conv_bn)
+            if module in itertools.chain(*self.channelrepr_conv_bn)
         )
 
     @torch.no_grad()
-    def update_channel_data(self) -> None:
-        """Update channel info into channel data for prune."""
-        for channel, _, bn in self.channel_conv_bn:
+    def update_channel_representative(self) -> None:
+        """Update channel representative value for pruning."""
+        for channelrepr, _, bn in self.channelrepr_conv_bn:
             # get norm
             w = copy.deepcopy(bn.weight)
-            channel.weight_orig.data = w.abs()
+            channelrepr.weight_orig.data = w.abs()
             # get sample input for dummpy forward
-            dummy_data = torch.zeros_like(channel.weight_orig.data).view(1, -1, 1, 1)
-            channel.eval()
-            channel(dummy_data)
+            dummy_data = torch.zeros_like(channelrepr.weight_orig.data).view(
+                1, -1, 1, 1
+            )
+            channelrepr.eval()
+            channelrepr(dummy_data)
 
 
 class ChannelInfo(nn.Module):
@@ -611,7 +591,7 @@ class ChannelInfo(nn.Module):
 
 
 class Magnitude(ChannelwisePruning):
-    """Magnitude based layerwise pruning.
+    """Magnitude based channel-wise pruning.
 
     Set NORM in PRUNE_PARAMS, for type of norm.
     Possibly all types of norm that torch.norm supports.
@@ -630,48 +610,54 @@ class Magnitude(ChannelwisePruning):
             config, dir_prefix, wandb_log, wandb_init_params, device
         )
 
-    def get_channel_conv_bn(
+    def get_channelrepr_conv_bn(
         self,
     ) -> Tuple[Tuple[nn.Module, nn.Conv2d, nn.BatchNorm2d], ...]:
-        """Get channel - conv - bn tuple.
+        """Get channel representive value - conv - bn tuple.
 
         Note:
-            Channel contains a data for prune.
-            For example, frobeinus norm in case of L2 magnitude,
-            bn weight for network slimming.
+            channelrep contains layer to calculate representative value
+                for channel-wise pruning.
+            conv, bn is corresponding layer to the layerrep.
+
+            For example, representative value is,
+                1) L2 magnitude: frobenius norm of output channel weight,
+                2) Network slimming: corresponding batchnorm weight.
+            In case of L2 magnitude, channelrepr is convlayer.
+            For network slimming, channelrepr is batchnorm layer.
         """
         layers = [
             v for v in self.model.modules() if type(v) in (nn.Conv2d, nn.BatchNorm2d)
         ]
-        channel_conv_bn = []
+        channelrep_conv_bn = []
         for i in range(1, len(layers)):
             if type(layers[i - 1]) is nn.Conv2d and type(layers[i]) is nn.BatchNorm2d:
                 out_channel = getattr(layers[i - 1], "weight").size()[0]
                 ch_info = ChannelInfo(int(out_channel)).to(self.device)
-                channel_conv_bn.append((ch_info, layers[i - 1], layers[i]))
-        return tuple(channel_conv_bn)
+                channelrep_conv_bn.append((ch_info, layers[i - 1], layers[i]))
+        return tuple(channelrep_conv_bn)
 
     def get_params_to_prune(self) -> Tuple[Tuple[nn.Module, str], ...]:
         """Get parameters to prune."""
-        t = [(channel, "weight") for channel, _, _ in self.channel_conv_bn]
+        t = [(channelrepr, "weight") for channelrepr, _, _ in self.channelrepr_conv_bn]
         return tuple(t)
 
     @torch.no_grad()
-    def update_channel_data(self) -> None:
-        """Update channel info into channel data for prune."""
-        for channel, conv, _ in self.channel_conv_bn:
+    def update_channel_representative(self) -> None:
+        """Update channel representative value for pruning."""
+        for channelrepr, conv, _ in self.channelrepr_conv_bn:
             # get norm
             w = copy.deepcopy(conv.weight)
             output_, input_, h_, w_ = w.size()
             w = w.view(output_, -1)
             normed_w = torch.norm(w, p=self.config["PRUNE_PARAMS"]["NORM"], dim=(1))
 
-            channel.weight_orig.data = normed_w
+            channelrepr.weight_orig.data = normed_w
 
             # dummy forward for hook
             dummy_data = torch.zeros_like(normed_w).view(1, -1, 1, 1)
-            channel.eval()
-            channel(dummy_data)
+            channelrepr.eval()
+            channelrepr(dummy_data)
 
 
 class SlimMagnitude(Magnitude):
@@ -694,9 +680,9 @@ class SlimMagnitude(Magnitude):
         )
 
     @torch.no_grad()
-    def update_channel_data(self) -> None:
-        """Update channel info into channel data for prune."""
-        for channel, conv, bn in self.channel_conv_bn:
+    def update_channel_representative(self) -> None:
+        """Update channel representative value for pruning."""
+        for channelrepr, conv, bn in self.channelrepr_conv_bn:
             # get norm
             w = copy.deepcopy(conv.weight)
             output_, input_, h_, w_ = w.size()
@@ -704,9 +690,9 @@ class SlimMagnitude(Magnitude):
             normed_w = torch.norm(w, p=self.config["PRUNE_PARAMS"]["NORM"], dim=(1))
             bn_w = copy.deepcopy(bn.weight)
 
-            channel.weight_orig.data = normed_w * bn_w.abs()
+            channelrepr.weight_orig.data = normed_w * bn_w.abs()
 
             # dummy forward for hook
             dummy_data = torch.zeros_like(normed_w).view(1, -1, 1, 1)
-            channel.eval()
-            channel(dummy_data)
+            channelrepr.eval()
+            channelrepr(dummy_data)
