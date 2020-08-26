@@ -287,9 +287,9 @@ $ python shrink.py --config config/prune/cifar100/densenet_small_slim.py --check
 ###### Densenet (L=100, k=12) pruned by 35.57% (Network Slimming & CIFAR100)
 ![parameters](https://user-images.githubusercontent.com/14961526/91256890-81b48b80-e7a3-11ea-812b-d806e4afab34.png)
 
-* Accuracy: 80.37%
-* Parameters: 0.78M -> 0.51M
-* Model Size: 6.48Mb -> 4.14Mb
+* Accuracy: 79.07%
+* Parameters: 0.78M -> 0.35M
+* Model Size: 6.48Mb -> 2.85Mb
 
 ```bash
 $ python shrink.py --config config/prune/cifar100/densenet_small_slim.py --checkpoint path_to_checkpoint.pth.tar
@@ -302,9 +302,6 @@ $ python shrink.py --config config/prune/cifar100/densenet_small_slim.py --check
 2020-08-26 13:53:06,114 - shrinker.py:118 - INFO - Acc: 79.07, Size: 2.851149 MB, Params: 0.35 M
 ```
 
-* Accuracy: 79.07%
-* Parameters: 0.78M -> 0.35M
-* Model Size: 6.48Mb -> 2.85Mb
 
 #### Quantization
 
