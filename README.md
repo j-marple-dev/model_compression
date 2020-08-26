@@ -1,14 +1,27 @@
 # Model Compression
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-4-green.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 ## Contents
 
 * [Getting started](https://github.com/j-marple-dev/model_compression#getting-started)
+  * [Prerequisites](https://github.com/j-marple-dev/model_compression#prerequisites)
+  * [Installation](https://github.com/j-marple-dev/model_compression#installation)
 * [Usages](https://github.com/j-marple-dev/model_compression#usages)
+  * [Run Training](https://github.com/j-marple-dev/model_compression#run-training)
+  * [Configurations for training](https://github.com/j-marple-dev/model_compression#configurations-for-training)
+  * [Run Pruning](https://github.com/j-marple-dev/model_compression#run-pruning)
+  * [Configurations for pruning](https://github.com/j-marple-dev/model_compression#configurations-for-pruning)
+  * [Run Shrinking](https://github.com/j-marple-dev/model_compression#run-shrinking-experimental)
+  * [Run Quantization](https://github.com/j-marple-dev/model_compression#run-quantization)
 * [Experimental Results](https://github.com/j-marple-dev/model_compression#experimental-results)
+  * [Unstructured Pruning](https://github.com/j-marple-dev/model_compression#unstructured-pruning-lth-vs-weight-rewinding-vs-lr-rewinding)
+  * [Structured Pruning](https://github.com/j-marple-dev/model_compression#structured-pruning-slim-vs-l2mag-vs-l2magslim)
+  * [Shrinking after Structured Pruning](https://github.com/j-marple-dev/model_compression#shrinking-after-structured-pruning)
+  * [Quantization](https://github.com/j-marple-dev/model_compression#quantization)
 * [Class Diagram](https://github.com/j-marple-dev/model_compression#class-diagram)
 * [References](https://github.com/j-marple-dev/model_compression#references)
 * [Contributors](https://github.com/j-marple-dev/model_compression#contributors)
