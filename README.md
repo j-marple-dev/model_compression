@@ -2,7 +2,6 @@
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-4-green.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 ## Contents
@@ -281,12 +280,11 @@ $ python quantize.py --config path_to_config.py --checkpoint path_to_checkpoint.
 $ python shrink.py --config config/prune/cifar100/densenet_small_slim.py --checkpoint path_to_checkpoint.pth.tar
 
 2020-08-26 13:50:38,442 - trainer.py:71 - INFO - Created a model densenet with 0.78M params
-...
 [Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:00:02 Time:  0:00:02
 2020-08-26 13:50:42,719 - shrinker.py:104 - INFO - Acc: 80.37, Size: 6.476016 MB, Sparsity: 19.66 %
 [Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:00:02 Time:  0:00:02
 2020-08-26 13:50:45,781 - shrinker.py:118 - INFO - Acc: 80.37, Size: 4.141713 MB, Params: 0.51 M
-`````````
+```
 
 ###### Densenet (L=100, k=12) pruned by 35.57% (Network Slimming & CIFAR100)
 ![parameters](https://user-images.githubusercontent.com/14961526/91256890-81b48b80-e7a3-11ea-812b-d806e4afab34.png)
@@ -299,8 +297,7 @@ $ python shrink.py --config config/prune/cifar100/densenet_small_slim.py --check
 $ python shrink.py --config config/prune/cifar100/densenet_small_slim.py --checkpoint path_to_checkpoint.pth.tar
 
 2020-08-26 13:52:58,946 - trainer.py:71 - INFO - Created a model densenet with 0.78M params
-...
-|#########################################################################################| Elapsed Time: 0:00:02 Time:  0:00:02
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:00:02 Time:  0:00:02
 2020-08-26 13:53:03,100 - shrinker.py:104 - INFO - Acc: 79.07, Size: 6.476016 MB, Sparsity: 35.57 %
 [Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:00:02 Time:  0:00:02
 2020-08-26 13:53:06,114 - shrinker.py:118 - INFO - Acc: 79.07, Size: 2.851149 MB, Params: 0.35 M
@@ -313,9 +310,8 @@ $ python shrink.py --config config/prune/cifar100/densenet_small_slim.py --check
 
 ```bash
 $ python quantize.py --config config/quantize/cifar100/densenet_small.py --checkpoint save/test/densenet_small/296_81_20.pth.tar --static --check-acc
-...
+
 2020-08-26 13:57:02,595 - trainer.py:71 - INFO - Created a model quant_densenet with 0.78M params
-...
 2020-08-26 13:57:05,275 - quantizer.py:87 - INFO - Acc: 81.2 %  Size: 3.286695 MB
 2020-08-26 13:57:05,344 - quantizer.py:95 - INFO - Post Training Static Quantization: Run calibration
 [Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:02:40 Time:  0:02:40
@@ -326,6 +322,7 @@ $ python quantize.py --config config/quantize/cifar100/densenet_small.py --check
 
 ```bash
 $ python quantize.py --config config/quantize/cifar100/densenet_small.py --checkpoint path_to_checkpoint.pth.tar --check-acc
+
 2020-08-26 14:06:46,855 - trainer.py:71 - INFO - Created a model quant_densenet with 0.78M params
 2020-08-26 14:06:49,506 - quantizer.py:87 - INFO - Acc: 81.2 %  Size: 3.286695 MB
 2020-08-26 14:06:49,613 - quantizer.py:99 - INFO - Quantization Aware Training: Run training
