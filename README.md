@@ -434,7 +434,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <table>
   <tr>
     <td align="center"><a href="https://github.com/Curt-Park"><img src="https://avatars3.githubusercontent.com/u/14961526?v=4" width="100px;" alt=""/><br /><sub><b>Jinwoo Park (Curt)</b></sub></a><br /><a href="https://github.com/j-marple-dev/model_compression/commits?author=Curt-Park" title="Code">💻</a></td>
-    <td align="center"><a href="https://linkedin.com/in/jhkim36/"><img src="https://avatars0.githubusercontent.com/u/25141842?v=4" width="100px;" alt=""/><br /><sub><b>hoonyyhoon</b></sub></a><br /><a href="https://github.com/j-marple-dev/model_compression/commits?author=Hoonyyhoon" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/Hoonyyhoon"><img src="https://avatars0.githubusercontent.com/u/25141842?v=4" width="100px;" alt=""/><br /><sub><b>Junghoon Kim</b></sub></a><br /><a href="https://github.com/j-marple-dev/model_compression/commits?author=Hoonyyhoon" title="Code">💻</a></td>
     <td align="center"><a href="https://github.com/HSShin0"><img src="https://avatars0.githubusercontent.com/u/44793742?v=4" width="100px;" alt=""/><br /><sub><b>HSShin0</b></sub></a><br /><a href="https://github.com/j-marple-dev/model_compression/commits?author=HSShin0" title="Code">💻</a></td>
     <td align="center"><a href="https://www.linkedin.com/in/juhee-lee-393342126/"><img src="https://avatars0.githubusercontent.com/u/18753708?v=4" width="100px;" alt=""/><br /><sub><b>Juhee Lee</b></sub></a><br /><a href="https://github.com/j-marple-dev/model_compression/commits?author=Ingenjoy" title="Code">💻</a></td>
   </tr>
