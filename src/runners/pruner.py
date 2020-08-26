@@ -329,32 +329,6 @@ class LotteryTicketHypothesis(Pruner):
         )
 
 
-class LotteryTicketHypothesisFC(LotteryTicketHypothesis):
-    """LTH on fc layer only.
-
-    References:
-        The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks
-        (https://arxiv.org/pdf/1803.03635.pdf)
-        Stabilizing the Lottery Ticket Hypothesis
-        (https://arxiv.org/pdf/1903.01611.pdf)
-        Comparing Rewinding and Fine-tuning in Neural Network Pruning
-        (https://arxiv.org/pdf/2003.02389.pdf)
-    """
-
-    def __init__(
-        self,
-        config: Dict[str, Any],
-        dir_prefix: str,
-        wandb_log: bool,
-        wandb_init_params: Dict[str, Any],
-        device: torch.device,
-    ) -> None:
-        """Initialize."""
-        super(LotteryTicketHypothesisFC, self).__init__(
-            config, dir_prefix, wandb_log, wandb_init_params, device
-        )
-
-
 class ChannelwisePruning(Pruner):
     """Channel-wise pruning."""
 
