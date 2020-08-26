@@ -262,7 +262,7 @@ $ python quantize.py --config path_to_config.py --checkpoint path_to_checkpoint.
 
 
 #### Structured Pruning (Slim vs L2Mag vs L2MagSlim)
-TODO
+<img width="1078" alt="Screen Shot 2020-08-26 at 11 05 22 PM" src="https://user-images.githubusercontent.com/14961526/91313805-c6b2df00-e7f0-11ea-8e16-886c3a594247.png">
 
 #### Shrinking after Structured Pruning
 
