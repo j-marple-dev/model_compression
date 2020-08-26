@@ -12,6 +12,7 @@
 * [Experimental Results](https://github.com/j-marple-dev/model_compression#experimental-results)
 * [Class Diagram](https://github.com/j-marple-dev/model_compression#class-diagram)
 * [References](https://github.com/j-marple-dev/model_compression#references)
+* [Contributors](https://github.com/j-marple-dev/model_compression#contributors)
 
 ## Getting started
 
@@ -413,7 +414,7 @@ $ python quantize.py --config config/quantize/cifar100/densenet_small.py --check
 * https://pytorch.org/tutorials/advanced/static_quantization_tutorial.html
 * https://github.com/pytorch/vision/tree/master/torchvision/models/quantization
 
-## Contributors ✨
+## Contributors
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
 
