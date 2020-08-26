@@ -185,7 +185,7 @@ config = {
     "N_PRUNING_ITER": 15,
     "PRUNE_METHOD": "Magnitude", # LotteryTicketHypothesis, Magnitude, NetworkSlimming, SlimMagnitude
     "PRUNE_PARAMS": dict(
-        PRUNE_AMOUNT=0.2,  # it iteratively prunes 20% of the network parameters at the end of training
+        PRUNE_AMOUNT=0.2,  # it iteratively prunes 20% of the network parameters at the end of trainings
         NORM=2,
         STORE_PARAM_BEFORE=train_config["EPOCHS"],  # used for weight initialization at every pruning iteration
         TRAIN_START_FROM=0,  # training starts from this epoch
@@ -255,23 +255,95 @@ $ python quantize.py --config path_to_config.py --checkpoint path_to_checkpoint.
 
 ## Experiment Results
 
-#### Unstructured Pruning
-TODO
+[WANDB Log](https://app.wandb.ai/j-marple/model_compression/reports/Structured-Pruning-Unstructured-Pruning--VmlldzoyMTA4MDA)
 
-#### Structured Pruning
+#### Unstructured Pruning (LTH vs Weight Rewinding vs LR Rewinding)
+<img width="1079" alt="Screen Shot 2020-08-24 at 1 00 31 AM" src="https://user-images.githubusercontent.com/14961526/90982941-962b3500-e5a5-11ea-922f-f792a2192c2e.png">
+
+
+#### Structured Pruning (Slim vs L2Mag vs L2MagSlim)
 TODO
 
 #### Shrinking after Structured Pruning
-TODO
+
+###### Densenet (L=100, k=12) pruned by 19.66% (Slim & CIFAR100)
+![parameters](https://user-images.githubusercontent.com/14961526/91256808-43b76780-e7a3-11ea-965d-1543385e400a.png)
+
+* Accuracy: 80.37%
+* Parameters: 0.78M -> 0.51M
+* Model Size: 6.48Mb -> 4.14Mb
+
+```bash
+$ python shrink.py --config config/prune/cifar100/densenet_small_slim.py --checkpoint path_to_checkpoint.pth.tar
+
+2020-08-26 13:50:38,442 - trainer.py:71 - INFO - Created a model densenet with 0.78M params
+...
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:00:02 Time:  0:00:02
+2020-08-26 13:50:42,719 - shrinker.py:104 - INFO - Acc: 80.37, Size: 6.476016 MB, Sparsity: 19.66 %
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:00:02 Time:  0:00:02
+2020-08-26 13:50:45,781 - shrinker.py:118 - INFO - Acc: 80.37, Size: 4.141713 MB, Params: 0.51 M
+`````````
+
+###### Densenet (L=100, k=12) pruned by 35.57% (Network Slimming & CIFAR100)
+![parameters](https://user-images.githubusercontent.com/14961526/91256890-81b48b80-e7a3-11ea-812b-d806e4afab34.png)
+
+* Accuracy: 80.37%
+* Parameters: 0.78M -> 0.51M
+* Model Size: 6.48Mb -> 4.14Mb
+
+```bash
+$ python shrink.py --config config/prune/cifar100/densenet_small_slim.py --checkpoint path_to_checkpoint.pth.tar
+
+2020-08-26 13:52:58,946 - trainer.py:71 - INFO - Created a model densenet with 0.78M params
+...
+|#########################################################################################| Elapsed Time: 0:00:02 Time:  0:00:02
+2020-08-26 13:53:03,100 - shrinker.py:104 - INFO - Acc: 79.07, Size: 6.476016 MB, Sparsity: 35.57 %
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:00:02 Time:  0:00:02
+2020-08-26 13:53:06,114 - shrinker.py:118 - INFO - Acc: 79.07, Size: 2.851149 MB, Params: 0.35 M
+```
+
+* Accuracy: 79.07%
+* Parameters: 0.78M -> 0.35M
+* Model Size: 6.48Mb -> 2.85Mb
 
 #### Quantization
 
 ###### Post-training Static Quantization
-TODO
+
+```bash
+$ python quantize.py --config config/quantize/cifar100/densenet_small.py --checkpoint save/test/densenet_small/296_81_20.pth.tar --static --check-acc
+...
+2020-08-26 13:57:02,595 - trainer.py:71 - INFO - Created a model quant_densenet with 0.78M params
+...
+2020-08-26 13:57:05,275 - quantizer.py:87 - INFO - Acc: 81.2 %  Size: 3.286695 MB
+2020-08-26 13:57:05,344 - quantizer.py:95 - INFO - Post Training Static Quantization: Run calibration
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:02:40 Time:  0:02:40
+2020-08-26 13:59:47,555 - quantizer.py:117 - INFO - Acc: 81.03 %  Size: 0.974913 MB
+```
 
 ###### Quantization-Aware Training
-TODO
 
+```bash
+$ python quantize.py --config config/quantize/cifar100/densenet_small.py --checkpoint path_to_checkpoint.pth.tar --check-acc
+2020-08-26 14:06:46,855 - trainer.py:71 - INFO - Created a model quant_densenet with 0.78M params
+2020-08-26 14:06:49,506 - quantizer.py:87 - INFO - Acc: 81.2 %  Size: 3.286695 MB
+2020-08-26 14:06:49,613 - quantizer.py:99 - INFO - Quantization Aware Training: Run training
+2020-08-26 14:46:51,857 - trainer.py:209 - INFO - Epoch: [0 | 4]        train/lr: 0.0001        train/loss: 1.984219    test/loss: 1.436638     test/model_acc: 80.96%    test/best_acc: 80.96%
+[Train] 100% (782 of 782) |########################################################################################| Elapsed Time: 0:38:09 Time:  0:38:09
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:02:40 Time:  0:02:40
+2020-08-26 15:27:43,919 - trainer.py:209 - INFO - Epoch: [1 | 4]        train/lr: 9e-05 train/loss: 1.989543    test/loss: 1.435748     test/model_acc: 80.87%    test/best_acc: 80.96%
+[Train] 100% (782 of 782) |########################################################################################| Elapsed Time: 0:38:10 Time:  0:38:10
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:02:36 Time:  0:02:36
+2020-08-26 16:08:32,883 - trainer.py:209 - INFO - Epoch: [2 | 4]        train/lr: 6.5e-05       train/loss: 1.984149    test/loss: 1.436074     test/model_acc: 80.82%    test/best_acc: 80.96%
+[Train] 100% (782 of 782) |########################################################################################| Elapsed Time: 0:38:14 Time:  0:38:14
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:02:39 Time:  0:02:39
+2020-08-26 16:49:28,848 - trainer.py:209 - INFO - Epoch: [3 | 4]        train/lr: 3.5e-05       train/loss: 1.984537    test/loss: 1.43442      test/model_acc: 81.01%    test/best_acc: 81.01%
+[Train] 100% (782 of 782) |########################################################################################| Elapsed Time: 0:38:19 Time:  0:38:19
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:02:42 Time:  0:02:42
+2020-08-26 17:30:32,187 - trainer.py:209 - INFO - Epoch: [4 | 4]        train/lr: 1e-05 train/loss: 1.990936    test/loss: 1.435393     test/model_acc: 80.92%    test/best_acc: 81.01%
+[Test]  100% (157 of 157) |#########################################################################################| Elapsed Time: 0:02:37 Time:  0:02:37
+2020-08-26 17:33:10,689 - quantizer.py:117 - INFO - Acc: 81.01 %        Size: 0.974913 MB
+```
 
 ## Class Diagram
 
