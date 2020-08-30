@@ -10,7 +10,10 @@
 * [Getting started](https://github.com/j-marple-dev/model_compression#getting-started)
   * [Prerequisites](https://github.com/j-marple-dev/model_compression#prerequisites)
   * [Installation](https://github.com/j-marple-dev/model_compression#installation)
+  * [Docker](https://github.com/j-marple-dev/model_compression#docker)
+
 * [Usages](https://github.com/j-marple-dev/model_compression#usages)
+
   * [Run Training](https://github.com/j-marple-dev/model_compression#run-training)
   * [Configurations for training](https://github.com/j-marple-dev/model_compression#configurations-for-training)
   * [Run Pruning](https://github.com/j-marple-dev/model_compression#run-pruning)
@@ -74,8 +77,8 @@ $ make test  # for linting
 ```
 
 #### Docker
+Make sure to have installed [Docker Engine](https://www.docker.com/) and [nvidia-docker](https://github.com/NVIDIA/nvidia-docker).
 ```bash
-docker pull jmarpledev/model_compression
 docker run -it --gpus all --ipc=host -v $PWD:/app/model_compression jmarpledev/model_compression:latest /bin/bash
 ```
 
