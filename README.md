@@ -73,6 +73,12 @@ $ make format  # for formatting
 $ make test  # for linting
 ```
 
+#### Docker
+```bash
+docker pull jmarpledev/model_compression
+docker run -it --gpus all --ipc=host -v $PWD:/app/model_compression jmarpledev/model_compression:latest /bin/bash
+```
+
 ## Usages
 
 #### Run training
