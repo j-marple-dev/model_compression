@@ -77,9 +77,19 @@ $ make test  # for linting
 ```
 
 #### Docker
-Make sure to have installed [Docker Engine](https://www.docker.com/) and [nvidia-docker](https://github.com/NVIDIA/nvidia-docker).
+
+0. Clone this repository.
 ```bash
-docker run -it --gpus all --ipc=host -v $PWD:/app/model_compression jmarpledev/model_compression:latest /bin/bash
+$ git clone https://github.com/j-marple-dev/model_compression.git
+$ cd model_compression
+```
+
+1. Make sure you have installed [Docker Engine](https://www.docker.com/) and [nvidia-docker](https://github.com/NVIDIA/nvidia-docker).
+
+2. Run the docker image.
+```bash
+$ docker run -it --gpus all --ipc=host -v $PWD:/app/model_compression jmarpledev/model_compression:latest /bin/bash
+$ cd model_compression
 ```
 
 ## Usages
