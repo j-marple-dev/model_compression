@@ -10,7 +10,10 @@
 * [Getting started](https://github.com/j-marple-dev/model_compression#getting-started)
   * [Prerequisites](https://github.com/j-marple-dev/model_compression#prerequisites)
   * [Installation](https://github.com/j-marple-dev/model_compression#installation)
+  * [Docker](https://github.com/j-marple-dev/model_compression#docker)
+
 * [Usages](https://github.com/j-marple-dev/model_compression#usages)
+
   * [Run Training](https://github.com/j-marple-dev/model_compression#run-training)
   * [Configurations for training](https://github.com/j-marple-dev/model_compression#configurations-for-training)
   * [Run Pruning](https://github.com/j-marple-dev/model_compression#run-pruning)
@@ -71,6 +74,22 @@ After having done `make dev`, you can validate the code by the following command
 ```bash
 $ make format  # for formatting
 $ make test  # for linting
+```
+
+#### Docker
+
+0. Clone this repository.
+```bash
+$ git clone https://github.com/j-marple-dev/model_compression.git
+$ cd model_compression
+```
+
+1. Make sure you have installed [Docker Engine](https://www.docker.com/) and [nvidia-docker](https://github.com/NVIDIA/nvidia-docker).
+
+2. Run the docker image.
+```bash
+$ docker run -it --gpus all --ipc=host -v $PWD:/app/model_compression jmarpledev/model_compression:latest /bin/bash
+$ cd model_compression
 ```
 
 ## Usages
