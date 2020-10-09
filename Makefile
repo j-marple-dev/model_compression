@@ -8,12 +8,8 @@ test:
 	env PYTHONPATH=. pytest --pylint --flake8 --mypy --ignore=checkpoint --ignore=wandb --ignore=save --ignore=config
 
 dev:
-	pip install -r requirements.txt
-	pip install -r requirements-dev.txt
+	conda env create -f environment.yml 
 	pre-commit install
-
-dep:
-	pip install -r requirements.txt
 
 docker-push:
 	docker build -t jmarpledev/model_compression .
