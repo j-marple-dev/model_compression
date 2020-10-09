@@ -76,6 +76,7 @@ class Trainer(Runner):
 
         # create logger
         if wandb_log:
+            wandb_init_params = wandb_init_params if wandb_init_params else dict()
             wandb.init(**wandb_init_params)
 
         self.n_correct_epoch: DefaultDict[str, int] = defaultdict(lambda: 0)
