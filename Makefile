@@ -9,6 +9,7 @@ test:
 
 dev:
 	conda env create -f environment.yml 
+	pip install pre-commit
 	pre-commit install
 
 docker-push:
