@@ -7,8 +7,10 @@ test:
 	isort . --check-only --skip checkpoint --skip wandb --skip save
 	env PYTHONPATH=. pytest --pylint --flake8 --mypy --ignore=checkpoint --ignore=wandb --ignore=save --ignore=config
 
-dev:
+install:
 	conda env create -f environment.yml 
+
+dev:
 	pip install pre-commit
 	pre-commit install
 
