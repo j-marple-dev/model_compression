@@ -33,10 +33,6 @@
 
 #### Prerequisites
 * This repository is implemented and verified on [Anaconda](https://www.anaconda.com/distribution/) virtual environment with python 3.7
-```bash
-$ conda env create -f environment.yml 
-$ conda activate model_compression
-```
 
 #### Installation
 
@@ -48,10 +44,17 @@ $ cd model_compression
 
 1. Create virtual environment
 ```bash
+$ conda env create -f environment.yml 
+$ conda activate model_compression
+```
+
+2. (Optional for contributors) Install CI environment
+```bash
+$ conda activate model_compression
 $ make dev
 ```
 
-2. (Optional for nvidia gpu) Install cudatoolkit.
+3. (Optional for nvidia gpu) Install cudatoolkit.
 ```bash
 $ conda activate model_compression
 $ conda install -c pytorch cudatooolkit=${cuda_version}
