@@ -47,6 +47,11 @@ $ cd model_compression
 $ conda env create -f environment.yml 
 $ conda activate model_compression
 ```
+or
+```bash
+$ make install 
+$ conda activate model_compression
+```
 
 2. (Optional for contributors) Install CI environment
 ```bash
