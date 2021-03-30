@@ -90,12 +90,12 @@ class AdjModuleGetter:
                     graph[var].append(next_var[0])
                     backward_search(next_var[0])
 
-        backward_search(out.grad_fn)
+        backward_search(out.grad_fn)  # type: ignore
         return graph
 
     def _hook_fn(self, module: nn.Module, inp: torch.Tensor, out: torch.Tensor) -> None:
-        self.module_ahead[out.grad_fn] = module
-        self.op_behind[module] = out.grad_fn
+        self.module_ahead[out.grad_fn] = module  # type: ignore
+        self.op_behind[module] = out.grad_fn  # type: ignore
 
         if type(module) == nn.Flatten:  # type: ignore
             self.last_conv_shape = inp[0].size()[-1]

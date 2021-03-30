@@ -100,12 +100,17 @@ class Trainer(Runner):
         # transform the training dataset for CutMix augmentation
         if "CUTMIX" in config:
             trainset = CutMix(
-                trainset, config["MODEL_PARAMS"]["num_classes"], **config["CUTMIX"],
+                trainset,
+                config["MODEL_PARAMS"]["num_classes"],
+                **config["CUTMIX"],
             )
 
         # get dataloaders
         self.trainloader, self.testloader = utils.get_dataloader(
-            trainset, testset, config["BATCH_SIZE"], config["N_WORKERS"],
+            trainset,
+            testset,
+            config["BATCH_SIZE"],
+            config["N_WORKERS"],
         )
         logger.info("Dataloader prepared")
 
@@ -132,7 +137,8 @@ class Trainer(Runner):
 
         # learning rate scheduler
         self.lr_scheduler = get_lr_scheduler(
-            config["LR_SCHEDULER"], config["LR_SCHEDULER_PARAMS"],
+            config["LR_SCHEDULER"],
+            config["LR_SCHEDULER_PARAMS"],
         )
 
     def reset(self, checkpt_dir: str) -> None:
@@ -289,7 +295,11 @@ class Trainer(Runner):
             return None
 
     def save_params(
-        self, model_path: str, filename: str, epoch: int, record_path: bool = True,
+        self,
+        model_path: str,
+        filename: str,
+        epoch: int,
+        record_path: bool = True,
     ) -> None:
         """Save model."""
         params = {

@@ -124,7 +124,9 @@ def autoaugment_train_cifar100_riair() -> transforms.Compose:
 
 
 def randaugment_train_cifar100(
-    n_select: int = 2, level: int = 14, n_level: int = 31,
+    n_select: int = 2,
+    level: int = 14,
+    n_level: int = 31,
 ) -> transforms.Compose:
     """Random augmentation policy for training CIFAR100."""
     operators = [
@@ -156,7 +158,9 @@ def randaugment_train_cifar100(
 
 
 def randaugment_train_cifar100_224(
-    n_select: int = 2, level: int = 14, n_level: int = 31,
+    n_select: int = 2,
+    level: int = 14,
+    n_level: int = 31,
 ) -> transforms.Compose:
     operators = [
         "Identity",

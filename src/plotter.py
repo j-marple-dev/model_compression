@@ -35,8 +35,8 @@ class PruneStat(NamedTuple):
 class Plotter:
     """Plotter for models.
 
-       Currently, it only plots sparsity information of each layer of the model,
-       but it can be utilized for plotting all sort of infomration.
+    Currently, it only plots sparsity information of each layer of the model,
+    but it can be utilized for plotting all sort of infomration.
     """
 
     def __init__(self, wandb_log: bool) -> None:
@@ -129,7 +129,7 @@ class Plotter:
     ) -> None:
         """Plot pruned parameters for each layers."""
         # extract type save_path: 'path+type.png'
-        stat_type = save_path.rsplit(".", 3)[0].rsplit("/", 1)[1]
+        stat_type = save_path.rsplit(".", 1)[0].rsplit("/", 1)[1]
 
         fig, ax = self._get_fig(x_names)
         x = np.arange(len(x_names))
@@ -200,7 +200,9 @@ class Plotter:
             )
 
     def _annotate_on_bar(
-        self, ax: matplotlib.axes.Axes, bars: List[matplotlib.axes.Axes.bar],
+        self,
+        ax: matplotlib.axes.Axes,
+        bars: List[matplotlib.axes.Axes.bar],
     ) -> None:
         """Attach a text label above each bar in rects, displaying its height."""
         for _, bar in enumerate(bars):

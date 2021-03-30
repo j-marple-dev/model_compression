@@ -24,7 +24,11 @@ class Bottleneck(nn.Module):
     """Bottleneck block for DenseNet."""
 
     def __init__(
-        self, inplanes: int, expansion: int, growthRate: int, efficient: bool,
+        self,
+        inplanes: int,
+        expansion: int,
+        growthRate: int,
+        efficient: bool,
     ) -> None:
         """Initialize."""
         super(Bottleneck, self).__init__()

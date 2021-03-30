@@ -203,7 +203,9 @@ class CrossEntropy(Criterion):
 
 
 def get_criterion(
-    criterion_name: str, criterion_params: Dict[str, Any], device: torch.device,
+    criterion_name: str,
+    criterion_params: Dict[str, Any],
+    device: torch.device,
 ) -> nn.Module:
     """Create loss class."""
     return eval(criterion_name)(device, **criterion_params)

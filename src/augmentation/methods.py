@@ -49,7 +49,9 @@ class SequentialAugmentation(Augmentation):
     """Sequential augmentation class."""
 
     def __init__(
-        self, policies: List[Tuple[str, float, int]], n_level: int = 10,
+        self,
+        policies: List[Tuple[str, float, int]],
+        n_level: int = 10,
     ) -> None:
         """Initialize."""
         super(SequentialAugmentation, self).__init__(n_level)
