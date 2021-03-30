@@ -9,6 +9,7 @@ import abc
 import copy
 import itertools
 import os
+import time
 from typing import Any, Callable, Dict, List, Set, Tuple, cast
 
 import torch
@@ -222,7 +223,9 @@ class Pruner(Runner):
 
         state_dict = torch.load(weight_path)["state_dict"]
         self.model.load_state_dict(state_dict)
+        t0 = time.time()
         avg_loss, acc = self.trainer.test_one_epoch_model(self.model)
+        print(f"Inference time: {time.time() - t0:.2f} sec")
         print(f"Average loss: {avg_loss:.4f}\t Accuracy: {acc}")
         self.model.load_state_dict(original_state_dict)
 
