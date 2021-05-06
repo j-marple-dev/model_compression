@@ -51,7 +51,7 @@ def get_rand_bbox_coord(
 def to_onehot(labels: torch.Tensor, num_classes: int) -> torch.Tensor:
     """Convert index based labels into one-hot based labels.
 
-       If labels are one-hot based already(e.g. [0.9, 0.01, 0.03,...]), do nothing.
+    If labels are one-hot based already(e.g. [0.9, 0.01, 0.03,...]), do nothing.
     """
     if len(labels.size()) == 1:
         return F.one_hot(labels, num_classes).float()
@@ -71,10 +71,12 @@ def get_dataset(
 
     # preprocessing policies
     transform_train = getattr(
-        __import__("src.augmentation.policies", fromlist=[""]), transform_train,
+        __import__("src.augmentation.policies", fromlist=[""]),
+        transform_train,
     )(**transform_train_params)
     transform_test = getattr(
-        __import__("src.augmentation.policies", fromlist=[""]), transform_test,
+        __import__("src.augmentation.policies", fromlist=[""]),
+        transform_test,
     )(**transform_test_params)
 
     # pytorch dataset
@@ -90,7 +92,10 @@ def get_dataset(
 
 
 def get_dataloader(
-    trainset: VisionDataset, testset: VisionDataset, batch_size: int, n_workers: int,
+    trainset: VisionDataset,
+    testset: VisionDataset,
+    batch_size: int,
+    n_workers: int,
 ) -> Tuple[data.DataLoader, data.DataLoader]:
     """Get dataloader for training and testing."""
     trainloader = data.DataLoader(

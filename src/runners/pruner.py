@@ -9,6 +9,7 @@ import abc
 import copy
 import itertools
 import os
+import time
 from typing import Any, Callable, Dict, List, Set, Tuple, cast
 
 import torch
@@ -87,7 +88,9 @@ class Pruner(Runner):
         raise NotImplementedError
 
     def reset(
-        self, prune_iter: int, resumed: bool = False,
+        self,
+        prune_iter: int,
+        resumed: bool = False,
     ) -> Tuple[int, List[Tuple[str, float, Callable[[float], str]]]]:
         """Reset the processes for pruning or pretraining.
 
@@ -213,6 +216,18 @@ class Pruner(Runner):
         last_iter = self._check_pruning_iter_from_filepath()
 
         return last_iter
+
+    def test(self, weight_path: str) -> None:
+        """Test the model with saved weight."""
+        original_state_dict = copy.deepcopy(self.model.state_dict())
+
+        state_dict = torch.load(weight_path)["state_dict"]
+        self.model.load_state_dict(state_dict)
+        t0 = time.time()
+        avg_loss, acc = self.trainer.test_one_epoch_model(self.model)
+        print(f"Inference time: {time.time() - t0:.2f} sec")
+        print(f"Average loss: {avg_loss:.4f}\t Accuracy: {acc}")
+        self.model.load_state_dict(original_state_dict)
 
     def run(self, resume_info_path: str = "") -> None:
         """Run pruning."""
@@ -418,16 +433,16 @@ class ChannelwisePruning(Pruner):
             ch_buffers = {name: buf for name, buf in channelrepr.named_buffers()}
             ch_mask = ch_buffers["weight_mask"].detach().clone()
             if "bias_mask" in ch_buffers:
-                ch_buffers["bias_mask"].set_(ch_mask)
+                ch_buffers["bias_mask"].set_(ch_mask)  # type: ignore
 
             # Copy channel weight_mask to bn weight_mask, bias_mask
             bn_buffers = {name: buf for name, buf in bn.named_buffers()}
-            bn_buffers["weight_mask"].set_(ch_mask)
-            bn_buffers["bias_mask"].set_(ch_mask)
+            bn_buffers["weight_mask"].set_(ch_mask)  # type: ignore
+            bn_buffers["bias_mask"].set_(ch_mask)  # type: ignore
 
             conv_buffers = {name: buf for name, buf in conv.named_buffers()}
             if "bias_mask" in conv_buffers:
-                conv_buffers["bias_mask"].set_(ch_mask)
+                conv_buffers["bias_mask"].set_(ch_mask)  # type: ignore
 
             # conv2d - batchnorm - activation (CBA)
             # bn_mask: [out], conv: [out, in, h, w]
@@ -445,7 +460,7 @@ class ChannelwisePruning(Pruner):
             # ch_mask: [out, in, h, w]
             ch_mask = ch_mask.repeat(1, i, 1, 1)
 
-            conv_buffers["weight_mask"].set_(ch_mask)
+            conv_buffers["weight_mask"].set_(ch_mask)  # type: ignore
 
         # Update fc layer mask
         fc_modules: Dict[str, nn.Linear] = dict()

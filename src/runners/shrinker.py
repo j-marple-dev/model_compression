@@ -228,7 +228,10 @@ class Shrinker(Runner):
             self._set_layer(new_model, fc_name, reshaped_fc)
 
     def _generate_reshaped_conv(
-        self, in_mask: Optional[torch.Tensor], out_mask: torch.Tensor, conv: nn.Conv2d,
+        self,
+        in_mask: Optional[torch.Tensor],
+        out_mask: torch.Tensor,
+        conv: nn.Conv2d,
     ) -> nn.Conv2d:
         """Generate new conv given old conv and masks(in and out or out only)."""
         # Shrink both input, output channel of conv, and extract weight(orig, mask)
@@ -238,7 +241,7 @@ class Shrinker(Runner):
         if in_mask is not None:
             # make masking matrix[o, i]: in_mask.T * out_mask
             # mask_flattened : [o*i]
-            mask_flattened = in_mask.unsqueeze(1).T * out_mask.unsqueeze(1)
+            mask_flattened = in_mask.unsqueeze(1).T * out_mask.unsqueeze(1)  # type: ignore
             mask_flattened = mask_flattened.reshape(-1)
             mask_idx = (mask_flattened == 1).nonzero().view(-1, 1, 1).repeat(1, h, w)
 

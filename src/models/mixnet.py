@@ -147,7 +147,10 @@ class MixNet(nn.Module):
 
         self.stem = nn.Sequential(
             ConvBN(
-                in_channels=3, out_channels=stem, kernel_size=3, stride=stem_stride,
+                in_channels=3,
+                out_channels=stem,
+                kernel_size=3,
+                stride=stem_stride,
             ),
             HSwish(inplace=True),
         )
@@ -178,7 +181,9 @@ class MixNet(nn.Module):
         if head:
             self.head = nn.Sequential(
                 ConvBN(
-                    in_channels=last_out_channels, out_channels=head, kernel_size=1,
+                    in_channels=last_out_channels,
+                    out_channels=head,
+                    kernel_size=1,
                 ),
                 HSwish(inplace=True),
             )

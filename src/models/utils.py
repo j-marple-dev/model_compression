@@ -125,7 +125,9 @@ def get_masks(model: nn.Module) -> Dict[str, torch.Tensor]:
 def dummy_pruning(params_all: Tuple[Tuple[nn.Module, str], ...]) -> None:
     """Conduct fake pruning."""
     prune.global_unstructured(
-        params_all, pruning_method=prune.L1Unstructured, amount=0.0,
+        params_all,
+        pruning_method=prune.L1Unstructured,
+        amount=0.0,
     )
 
 
@@ -246,9 +248,11 @@ def wlog_weight(model: nn.Module) -> None:
             named_buffers = eval(
                 "model." + dot2bracket(layer_name) + ".named_buffers()"
             )
-            mask: Tuple[str, torch.Tensor] = next(
-                x for x in list(named_buffers) if x[0] == "weight_mask"
-            )[1].cpu().data.numpy()
+            mask: Tuple[str, torch.Tensor] = (
+                next(x for x in list(named_buffers) if x[0] == "weight_mask")[1]
+                .cpu()
+                .data.numpy()
+            )
             masked_weight = weight[np.where(mask == 1.0)]
             wlog.update({w_name: wandb.Histogram(masked_weight)})
     wandb.log(wlog, commit=False)

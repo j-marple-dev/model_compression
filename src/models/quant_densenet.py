@@ -19,7 +19,11 @@ class QuantizableBottleneck(Bottleneck):
     """Quantizable Bottleneck layer."""
 
     def __init__(
-        self, inplanes: int, expansion: int, growthRate: int, efficient: bool,
+        self,
+        inplanes: int,
+        expansion: int,
+        growthRate: int,
+        efficient: bool,
     ) -> None:
         """Initialize."""
         super(QuantizableBottleneck, self).__init__(
