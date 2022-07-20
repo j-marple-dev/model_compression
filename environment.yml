@@ -7,9 +7,9 @@ dependencies:
   - python=3.7
   - progressbar2=3.53.1
   - isort=5.1.4
-  - black=19.10b0
-  - mypy=0.770
-  - flake8=3.8.2
+  - black=22.3.0
+  - mypy=0.971
+  - flake8=3.8.3
   - flake8-bugbear=20.1.4
   - flake8-docstrings=1.5.0
   - pylint=2.6.0
@@ -17,9 +17,17 @@ dependencies:
   - pytest-pylint=0.17.0
   - pytest-flake8=1.0.6
   - pytest-mypy=0.7.0
-  - pytorch=1.5.1
-  - torchvision=0.6.1
+  - flake8-annotations=2.4.0
+  - flake8-polyfill=1.0.2
+  - pytorch=1.9.1
+  - torchvision=0.10.1
   - pip:
     - gdown==3.11.1
     - wandb
     - pyyaml
+    - opencv-python==4.5.3.56
+    - tensorly==0.6.0
+    - p-tqdm==1.3.3
+    - pyflakes==2.2.0
+    - coverage==5.3
+    - pytest-cov==2.10.1
