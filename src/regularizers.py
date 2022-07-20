@@ -38,7 +38,8 @@ class BnWeight(nn.Module):
 
 
 def get_regularizer(
-    regularizer_name: str, regularizer_params: Dict[str, Any],
+    regularizer_name: str,
+    regularizer_params: Dict[str, Any],
 ) -> nn.Module:
     """Create regularizer class."""
     if not regularizer_params:

@@ -29,7 +29,6 @@ class ConfigValidator(ABC):
     @abstractmethod
     def check(self) -> None:
         """Check configs are specified correctly."""
-
         raise NotImplementedError
 
     def check_key_exists(self) -> None:

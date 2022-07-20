@@ -140,7 +140,10 @@ class Shrinker(Runner):
 
     @torch.no_grad()
     def shrink_model(self, old_model: nn.Module, new_model: nn.Module) -> nn.Module:
-        """Shrink model by removing pruned layer. Return shrinked(new) model."""
+        """Shrink model by removing pruned layer.
+
+        Return shrinked(new) model.
+        """
         old_model.eval()
         new_model.eval()
 
@@ -228,7 +231,10 @@ class Shrinker(Runner):
             self._set_layer(new_model, fc_name, reshaped_fc)
 
     def _generate_reshaped_conv(
-        self, in_mask: Optional[torch.Tensor], out_mask: torch.Tensor, conv: nn.Conv2d,
+        self,
+        in_mask: Optional[torch.Tensor],
+        out_mask: torch.Tensor,
+        conv: nn.Conv2d,
     ) -> nn.Conv2d:
         """Generate new conv given old conv and masks(in and out or out only)."""
         # Shrink both input, output channel of conv, and extract weight(orig, mask)

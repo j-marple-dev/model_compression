@@ -55,7 +55,8 @@ class QuantizableMixBlock(MixBlock):
 
         self.se = (
             QuantizableSqueezeExcitation(
-                in_channels=self.out_channels, se_ratio=self.se_ratio,
+                in_channels=self.out_channels,
+                se_ratio=self.se_ratio,
             )
             if self.has_se
             else Identity()
@@ -92,7 +93,7 @@ class QuantizableMixNet(MixNet):
 
 
 def get_model(model_type: str, num_classes: int, dataset: str) -> nn.Module:
-    """Constructs a MixNet model."""
+    """Construct a MixNet model."""
     kwargs = get_model_kwargs(model_type, num_classes, dataset)
     kwargs.update(dict(Block=QuantizableMixBlock))
     return QuantizableMixNet(**kwargs)

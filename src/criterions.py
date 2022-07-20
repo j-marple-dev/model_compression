@@ -115,7 +115,9 @@ class HintonKLD(Criterion):
     def calculate_loss(
         self, logit_s: torch.Tensor, logit_t: torch.Tensor, labels: torch.Tensor
     ) -> torch.Tensor:
-        """Pure part of calculate loss, does not contain model forward procedure, \
+        """Calculate loss.
+
+        Pure part of calculate loss, does not contain model forward procedure,
         so that it can be combined with other loss.
 
         Args:
@@ -129,7 +131,7 @@ class HintonKLD(Criterion):
         """
         log_p_s = F.log_softmax(logit_s / self.T, dim=1)
         p_t = F.softmax(logit_t / self.T, dim=1)
-        hinton_kld = F.kl_div(log_p_s, p_t, reduction="batchmean") * (self.T ** 2)
+        hinton_kld = F.kl_div(log_p_s, p_t, reduction="batchmean") * (self.T**2)
         ce = self.cross_entropy.calculate_loss(logit_s, labels)
         return (1.0 - self.alpha) * ce + self.alpha * hinton_kld
 
@@ -167,7 +169,9 @@ class CrossEntropy(Criterion):
         return self.calculate_loss(logit=logit, labels=labels), {"model": logit}
 
     def calculate_loss(self, logit: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        """Pure part of calculate loss, does not contain model forward procedure, \
+        """Calculate loss.
+
+        Pure part of calculate loss, does not contain model forward procedure,
         so that it can be combined with other loss.
 
         Args:
@@ -203,7 +207,9 @@ class CrossEntropy(Criterion):
 
 
 def get_criterion(
-    criterion_name: str, criterion_params: Dict[str, Any], device: torch.device,
+    criterion_name: str,
+    criterion_params: Dict[str, Any],
+    device: torch.device,
 ) -> nn.Module:
     """Create loss class."""
     return eval(criterion_name)(device, **criterion_params)

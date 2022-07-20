@@ -82,7 +82,7 @@ class Trainer(Runner):
         self.n_correct_epoch: DefaultDict[str, int] = defaultdict(lambda: 0)
 
     def setup_train_configuration(self, config: Dict[str, Any]) -> None:
-        """Setup train configuration."""
+        """Set up train configuration."""
         self.config = config
         self.total_epochs = self.config["EPOCHS"]
 
@@ -100,12 +100,17 @@ class Trainer(Runner):
         # transform the training dataset for CutMix augmentation
         if "CUTMIX" in config:
             trainset = CutMix(
-                trainset, config["MODEL_PARAMS"]["num_classes"], **config["CUTMIX"],
+                trainset,
+                config["MODEL_PARAMS"]["num_classes"],
+                **config["CUTMIX"],
             )
 
         # get dataloaders
         self.trainloader, self.testloader = utils.get_dataloader(
-            trainset, testset, config["BATCH_SIZE"], config["N_WORKERS"],
+            trainset,
+            testset,
+            config["BATCH_SIZE"],
+            config["N_WORKERS"],
         )
         logger.info("Dataloader prepared")
 
@@ -132,7 +137,8 @@ class Trainer(Runner):
 
         # learning rate scheduler
         self.lr_scheduler = get_lr_scheduler(
-            config["LR_SCHEDULER"], config["LR_SCHEDULER_PARAMS"],
+            config["LR_SCHEDULER"],
+            config["LR_SCHEDULER_PARAMS"],
         )
 
     def reset(self, checkpt_dir: str) -> None:
@@ -147,7 +153,7 @@ class Trainer(Runner):
             os.mkdir(self.model_save_dir)
 
     def resume(self) -> int:
-        """Setting to resume the training."""
+        """Set to resume the training."""
         last_epoch = -1
         latest_file_path = self._fetch_latest_checkpt()
         if latest_file_path and os.path.exists(latest_file_path):
@@ -268,6 +274,10 @@ class Trainer(Runner):
             self._count_correct_prediction(outputs, labels)
             losses.append(loss.item())
 
+            import pdb
+
+            pdb.set_trace()
+
         avg_loss = sum(losses) / len(losses)
         acc = self._get_epoch_acc(is_test=True)
         return avg_loss, acc
@@ -289,7 +299,11 @@ class Trainer(Runner):
             return None
 
     def save_params(
-        self, model_path: str, filename: str, epoch: int, record_path: bool = True,
+        self,
+        model_path: str,
+        filename: str,
+        epoch: int,
+        record_path: bool = True,
     ) -> None:
         """Save model."""
         params = {
@@ -310,7 +324,7 @@ class Trainer(Runner):
             ) as checkpts:
                 checkpts.write(filepath + "\n")
 
-    def load_model(self, model_path: str, with_mask=True) -> None:
+    def load_model(self, model_path: str, with_mask: bool = True) -> None:
         """Load weights and masks."""
         checkpt = torch.load(model_path, map_location=self.device)
         model_utils.initialize_params(
@@ -318,7 +332,7 @@ class Trainer(Runner):
         )
         logger.info(f"Loaded the model from {model_path}")
 
-    def load_params(self, model_path: str, with_mask=True) -> None:
+    def load_params(self, model_path: str, with_mask: bool = True) -> None:
         """Load weights and masks."""
         checkpt = torch.load(model_path, map_location=self.device)
         model_utils.initialize_params(
@@ -347,6 +361,9 @@ class Trainer(Runner):
         for module_name, logit in logits.items():
             _, predicted = torch.max(F.softmax(logit, dim=1).data, 1)
             n_correct = int((predicted == labels).sum().cpu())
+            import pdb
+
+            pdb.set_trace()
             self.n_correct_epoch[module_name] += n_correct
 
     def _get_epoch_acc(self, is_test: bool = False) -> Dict[str, float]:

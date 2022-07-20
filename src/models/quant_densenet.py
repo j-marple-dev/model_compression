@@ -19,7 +19,11 @@ class QuantizableBottleneck(Bottleneck):
     """Quantizable Bottleneck layer."""
 
     def __init__(
-        self, inplanes: int, expansion: int, growthRate: int, efficient: bool,
+        self,
+        inplanes: int,
+        expansion: int,
+        growthRate: int,
+        efficient: bool,
     ) -> None:
         """Initialize."""
         super(QuantizableBottleneck, self).__init__(
@@ -38,6 +42,8 @@ class QuantizableBottleneck(Bottleneck):
 
 
 class QuantizableDenseBlock(DenseBlock):
+    """Quantizable Densenet block."""
+
     def __init__(
         self,
         inplanes: int,
@@ -46,13 +52,15 @@ class QuantizableDenseBlock(DenseBlock):
         growth_rate: int,
         efficient: bool,
         Layer: "type" = QuantizableBottleneck,
-    ):
+    ) -> None:
+        """Initialize."""
         super(QuantizableDenseBlock, self).__init__(
             inplanes, blocks, expansion, growth_rate, efficient, Layer
         )
         self.cat = nn.quantized.FloatFunctional()
 
     def forward(self, init_features: torch.Tensor) -> torch.Tensor:
+        """Forward."""
         features = [init_features]
         for layer in self.layers:
             new_features = layer(features)
@@ -108,5 +116,5 @@ class QuantizableDenseNet(DenseNet):
 
 
 def get_model(**kwargs: Any) -> nn.Module:
-    """Constructs a Simple model for quantization."""
+    """Construct a Simple model for quantization."""
     return QuantizableDenseNet(**kwargs)

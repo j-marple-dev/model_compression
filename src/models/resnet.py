@@ -11,7 +11,7 @@ import torch.nn as nn
 
 
 def get_model(model_type: str, num_classes: int, pretrained: bool = False) -> nn.Module:
-    """Constructs a ResNet model."""
+    """Construct a ResNet model."""
     assert model_type in [
         "resnet18",
         "resnet34",
@@ -23,6 +23,7 @@ def get_model(model_type: str, num_classes: int, pretrained: bool = False) -> nn
         "wide_resnet50_2",
         "wide_resnet101_2",
     ]
-    return getattr(__import__("torchvision.models", fromlist=[""]), model_type,)(
-        pretrained=pretrained, num_classes=num_classes
-    )
+    return getattr(
+        __import__("torchvision.models", fromlist=[""]),
+        model_type,
+    )(pretrained=pretrained, num_classes=num_classes)

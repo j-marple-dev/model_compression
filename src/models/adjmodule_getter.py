@@ -15,8 +15,8 @@ import torch.nn as nn
 class AdjModuleGetter:
     """Adjacent module getter used by Shrinker.
 
-    This gets adjacent module information to use for model shrinking.
-    Assume the model consists of conv-bn-relu sequence.
+    This gets adjacent module information to use for model shrinking. Assume the model
+    consists of conv-bn-relu sequence.
     """
 
     def __init__(

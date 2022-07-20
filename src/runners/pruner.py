@@ -87,7 +87,9 @@ class Pruner(Runner):
         raise NotImplementedError
 
     def reset(
-        self, prune_iter: int, resumed: bool = False,
+        self,
+        prune_iter: int,
+        resumed: bool = False,
     ) -> Tuple[int, List[Tuple[str, float, Callable[[float], str]]]]:
         """Reset the processes for pruning or pretraining.
 
@@ -99,7 +101,6 @@ class Pruner(Runner):
             int: the starting epoch of training (rewinding point for pruning).
             List[Tuple[str, float, Callable[[float], str]]]: logging information for sparsity,
                 which consists of key, value, and formatting function.
-
         """
         # pretraining
         if prune_iter == -1:
@@ -201,7 +202,7 @@ class Pruner(Runner):
         return start_epoch, sparsity_info
 
     def resume(self) -> int:
-        """Setting to resume the training."""
+        """Resume model for the training."""
         # check if there is a saved initial parameters
         init_params_path = os.path.join(
             self.dir_prefix, f"{self.init_params_name}.{self.fileext}"
@@ -418,16 +419,16 @@ class ChannelwisePruning(Pruner):
             ch_buffers = {name: buf for name, buf in channelrepr.named_buffers()}
             ch_mask = ch_buffers["weight_mask"].detach().clone()
             if "bias_mask" in ch_buffers:
-                ch_buffers["bias_mask"].set_(ch_mask)
+                ch_buffers["bias_mask"].set_(ch_mask)  # type: ignore
 
             # Copy channel weight_mask to bn weight_mask, bias_mask
             bn_buffers = {name: buf for name, buf in bn.named_buffers()}
-            bn_buffers["weight_mask"].set_(ch_mask)
-            bn_buffers["bias_mask"].set_(ch_mask)
+            bn_buffers["weight_mask"].set_(ch_mask)  # type: ignore
+            bn_buffers["bias_mask"].set_(ch_mask)  # type: ignore
 
             conv_buffers = {name: buf for name, buf in conv.named_buffers()}
             if "bias_mask" in conv_buffers:
-                conv_buffers["bias_mask"].set_(ch_mask)
+                conv_buffers["bias_mask"].set_(ch_mask)  # type: ignore
 
             # conv2d - batchnorm - activation (CBA)
             # bn_mask: [out], conv: [out, in, h, w]
@@ -445,7 +446,7 @@ class ChannelwisePruning(Pruner):
             # ch_mask: [out, in, h, w]
             ch_mask = ch_mask.repeat(1, i, 1, 1)
 
-            conv_buffers["weight_mask"].set_(ch_mask)
+            conv_buffers["weight_mask"].set_(ch_mask)  # type: ignore
 
         # Update fc layer mask
         fc_modules: Dict[str, nn.Linear] = dict()
@@ -495,8 +496,11 @@ class ChannelwisePruning(Pruner):
         return self.update_params_to_prune(exclude_param_index)
 
     def new_allzero_params(self, exclude_params: Set[int]) -> bool:
-        """Check if there is params all zeroed and put into exclude params,
-        return whether there is zeored params."""
+        """Check and exclude zeroed params.
+
+        Check if there is params all zeroed and put into exclude params, return
+        whether there is zeored params.
+        """
         exclude_len = len(exclude_params)
         for i, (param, _) in enumerate(self.params_to_prune):
             param.weight_mask = cast(torch.Tensor, param.weight_mask)
@@ -582,19 +586,21 @@ class ChannelInfo(nn.Module):
     """Module contains channel info for pruning."""
 
     def __init__(self, out_channels: int) -> None:
+        """Initialize."""
         super(ChannelInfo, self).__init__()
         self.weight = nn.Parameter(torch.zeros(out_channels, requires_grad=False))
         self.bias = nn.Parameter(torch.zeros(out_channels, requires_grad=False))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward."""
         return x
 
 
 class Magnitude(ChannelwisePruning):
     """Magnitude based channel-wise pruning.
 
-    Set NORM in PRUNE_PARAMS, for type of norm.
-    Possibly all types of norm that torch.norm supports.
+    Set NORM in PRUNE_PARAMS, for type of norm. Possibly all types of norm that
+    torch.norm supports.
     """
 
     def __init__(

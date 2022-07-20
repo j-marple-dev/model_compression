@@ -24,7 +24,11 @@ class Bottleneck(nn.Module):
     """Bottleneck block for DenseNet."""
 
     def __init__(
-        self, inplanes: int, expansion: int, growthRate: int, efficient: bool,
+        self,
+        inplanes: int,
+        expansion: int,
+        growthRate: int,
+        efficient: bool,
     ) -> None:
         """Initialize."""
         super(Bottleneck, self).__init__()
@@ -50,6 +54,8 @@ class Bottleneck(nn.Module):
 
 
 class DenseBlock(nn.Module):
+    """Densenet block."""
+
     def __init__(
         self,
         inplanes: int,
@@ -58,7 +64,8 @@ class DenseBlock(nn.Module):
         growth_rate: int,
         efficient: bool,
         Layer: "type" = Bottleneck,
-    ):
+    ) -> None:
+        """Initialize."""
         super(DenseBlock, self).__init__()
         self.layers = nn.ModuleList()
         for i in range(blocks):
@@ -71,6 +78,7 @@ class DenseBlock(nn.Module):
             self.layers.append(layer)
 
     def forward(self, init_features: torch.Tensor) -> torch.Tensor:
+        """Forward."""
         features = [init_features]
         for layer in self.layers:
             new_features = layer(*features)
@@ -171,5 +179,5 @@ class DenseNet(nn.Module):
 
 
 def get_model(**kwargs: Any) -> nn.Module:
-    """Constructs a ResNet model. """
+    """Construct a ResNet model."""
     return DenseNet(**kwargs)

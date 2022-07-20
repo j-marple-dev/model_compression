@@ -15,7 +15,10 @@ parser = argparse.ArgumentParser(description="Model pruner.")
 parser.add_argument("--multi-gpu", action="store_true", help="Multi-GPU use")
 parser.add_argument("--gpu", default=0, type=int, help="GPU id to use")
 parser.add_argument(
-    "--resume", type=str, default="", help="Input checkpoint directory name",
+    "--resume",
+    type=str,
+    default="",
+    help="Input checkpoint directory name",
 )
 parser.add_argument(
     "--wlog", dest="wlog", action="store_true", help="Turns on wandb logging"

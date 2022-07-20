@@ -81,6 +81,8 @@ def initialize(
         QuantizeConfigValidator(config).check()
     elif mode == "shrink":
         ShrinkConfigValidator(config).check()
+    elif mode == "val":
+        TrainConfigValidator(config).check()
     else:
         raise NotImplementedError
 

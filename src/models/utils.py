@@ -10,7 +10,7 @@ import hashlib
 import os
 import re
 import tarfile
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import gdown
 import numpy as np
@@ -18,7 +18,11 @@ import torch
 import torch.nn as nn
 import torch.nn.utils.prune as prune
 import wandb
-import yaml
+import yaml  # type: ignore
+
+from src.logger import colorstr, get_logger
+
+LOGGER = get_logger(__name__)
 
 
 def get_model(model_name: str, model_config: Dict[str, Any]) -> nn.Module:
@@ -29,7 +33,53 @@ def get_model(model_name: str, model_config: Dict[str, Any]) -> nn.Module:
     )
 
 
-def initialize_params(model: Any, state_dict: Dict[str, Any], with_mask=True) -> None:
+def load_decomposed_model(
+    weight_path: str, model_cfg_path: str = "", load_ema: bool = True
+) -> Optional[nn.Module]:
+    """Load PyTorch model.
+
+    Args:
+        weight_path: weight path which ends with .pt
+        model_cfg_path: if provided, the model will first construct by the model_cfg,
+                        and transfer weights to the constructed model.
+                        In case of model_cfg_path was provided but not weight_path,
+                        the model weights will be randomly initialized
+                        (for experiment purpose).
+        load_ema: load EMA weights if possible.
+    Return:
+        PyTorch model,
+        None if loading PyTorch model has failed.
+    """
+    if weight_path == "":
+        LOGGER.warning(
+            "Providing "
+            + colorstr("bold", "no weights path")
+            + " will validate a randomly initialized model. Please use only for a experiment purpose."
+        )
+    else:
+        ckpt = torch.load(weight_path)
+        if isinstance(ckpt, dict):
+            model_key = (
+                "ema"
+                if load_ema and "ema" in ckpt.keys() and ckpt["ema"] is not None
+                else "model"
+            )
+            ckpt_model = ckpt[model_key]
+        elif isinstance(ckpt, nn.Module):
+            ckpt_model = ckpt
+
+        ckpt_model = ckpt_model.cpu().float()
+
+    if ckpt_model is None and model_cfg_path == "":
+        LOGGER.warning("No weights and no model_cfg has been found.")
+        return None
+
+    model = ckpt_model
+
+    return model
+
+
+def initialize_params(model: Any, state_dict: Dict[str, Any], with_mask: bool = True) -> None:
     """Initialize weights and masks."""
     model_dict = model.state_dict()
     # 1. filter out unnecessary keys
@@ -48,8 +98,11 @@ def get_model_hash(model: nn.Module) -> str:
 
 
 def get_pretrained_model_info(model: nn.Module) -> Dict[str, str]:
-    """Read yaml file, get pretrained model information(model_dir, gdrive_link) \
-        given hash."""
+    """Read yaml file and get pretrained model.
+
+    Read yaml file, get pretrained model information(model_dir, gdrive_link) given
+    hash.
+    """
     model_hash = str(get_model_hash(model))
     with open("config/pretrained_model_url.yaml", mode="r") as f:
         model_info = yaml.load(f, Loader=yaml.FullLoader)[model_hash]
@@ -87,7 +140,6 @@ def get_layernames(model: nn.Module) -> Set[str]:
     Notes:
        No usage now, can be deprecated.
     """
-
     t = set()
     for name, param in model.named_parameters():
         if not param.requires_grad:
@@ -125,7 +177,9 @@ def get_masks(model: nn.Module) -> Dict[str, torch.Tensor]:
 def dummy_pruning(params_all: Tuple[Tuple[nn.Module, str], ...]) -> None:
     """Conduct fake pruning."""
     prune.global_unstructured(
-        params_all, pruning_method=prune.L1Unstructured, amount=0.0,
+        params_all,
+        pruning_method=prune.L1Unstructured,
+        amount=0.0,
     )
 
 
@@ -246,9 +300,11 @@ def wlog_weight(model: nn.Module) -> None:
             named_buffers = eval(
                 "model." + dot2bracket(layer_name) + ".named_buffers()"
             )
-            mask: Tuple[str, torch.Tensor] = next(
-                x for x in list(named_buffers) if x[0] == "weight_mask"
-            )[1].cpu().data.numpy()
+            mask: Tuple[str, torch.Tensor] = (
+                next(x for x in list(named_buffers) if x[0] == "weight_mask")[1]
+                .cpu()
+                .data.numpy()
+            )
             masked_weight = weight[np.where(mask == 1.0)]
             wlog.update({w_name: wandb.Histogram(masked_weight)})
     wandb.log(wlog, commit=False)
