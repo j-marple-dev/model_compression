@@ -6,6 +6,6 @@
 """
 
 
-def test_dummy():
+def test_dummy() -> None:
     """Dummy test."""
     pass
