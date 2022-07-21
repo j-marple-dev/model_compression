@@ -7,8 +7,11 @@
 import argparse
 import os
 
+from src.logger import get_logger
 from src.runners import initialize
 from src.runners.validator import Validator
+
+LOGGER = get_logger(__name__)
 
 
 def get_parser() -> argparse.Namespace:
@@ -40,7 +43,7 @@ def get_parser() -> argparse.Namespace:
         "--decomp_dir",
         type=str,
         default="",
-        help="Decomposed model weight directory (e.g. decompose/220714_180306).",
+        help="Decomposed model weight file path (e.g. decompose/220714_180306/weight.pt).",
     )
     parser.set_defaults(half=False)
     parser.set_defaults(multi_gpu=False)
@@ -52,13 +55,21 @@ if __name__ == "__main__":
     args = get_parser()
 
     if args.decomposed and args.decomp_dir:
-        config, dir_prefix, device = initialize(
-            "val", args.config, args.decomp_dir, args.multi_gpu, args.gpu
-        )
+        if args.decomp_dir.endswith(".pt"):
+            decomp_dir = args.decomp_dir.split("/")
+            weight = decomp_dir[-1]
+            decomp_dir = os.path.join(decomp_dir[0], decomp_dir[1])
+            config, dir_prefix, device = initialize(
+                "val", args.config, decomp_dir, args.multi_gpu, args.gpu
+            )
+            weight_path = args.decomp_dir
+        else:
+            raise ValueError("The decomposed dir should be end with pt")
     else:
         config, dir_prefix, device = initialize(
             "val", args.config, args.resume, args.multi_gpu, args.gpu
         )
+        weight_path = args.decomp_dir
 
     print(config)
     validator = Validator(
@@ -68,7 +79,8 @@ if __name__ == "__main__":
         device=device,
         half=args.half,
         decomposed=args.decomposed,
-        weight_path=os.path.join(args.decomp_dir, "decomposed_model.pt"),
+        weight_path=weight_path,
     )
 
-    validator.run()
+    _, acc = validator.run()
+    LOGGER.info(f"accuracy : {acc['model_acc']}%")

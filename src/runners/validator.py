@@ -120,11 +120,12 @@ class Validator(Runner):
         if not self.decomposed:
             self.resume()
 
-    def run(self) -> None:
+    def run(self) -> Tuple[float, dict]:
         """Train the model."""
         # resume trainer if needed
         test_loss, acc = self.test_one_epoch()
-        LOGGER.info(f"loss : {test_loss}, accuracy : {acc['model_acc']}%")
+        # LOGGER.info(f"loss : {test_loss}, accuracy : {acc['model_acc']}%")
+        return test_loss, acc
 
     @torch.no_grad()
     def test_one_epoch_model(self, model: nn.Module) -> Tuple[float, Dict[str, float]]:

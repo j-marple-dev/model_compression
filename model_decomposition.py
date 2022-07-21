@@ -9,7 +9,7 @@ from copy import deepcopy
 import os
 from pathlib import Path
 import time
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -70,11 +70,45 @@ def get_parser() -> argparse.Namespace:
         action="store_true",
         help="Logging the tensor decomposition results.",
     )
+    parser.add_argument(
+        "--file_name",
+        type=str,
+        default="decomposed_model.pt",
+        help="Decomposed model's file name",
+    )
     parser.add_argument("--seed", type=int, default=0, help="Random seed.")
     parser.set_defaults(multi_gpu=False)
     parser.set_defaults(half=False)
     parser.set_defaults(log=False)
     return parser.parse_args()
+
+
+def log_result(
+    ori_param: int,
+    decomp_param: int,
+    ori_time: float,
+    decomp_time: float,
+    ori_result: float,
+    decomp_result: float,
+) -> Tuple[Dict[str, str], List[str]]:
+    """Generate string for logging."""
+    log_dict = {}
+    dict_keys = [
+        "ori_param",
+        "decomp_param",
+        "ori_time",
+        "decomp_time",
+        "ori_result",
+        "decomp_result",
+    ]
+    log_dict.update({dict_keys[0]: f"  Original # of param    : {ori_param}"})
+    log_dict.update({dict_keys[1]: f"Decomposed # of param    : {decomp_param}"})
+    log_dict.update({dict_keys[2]: f"Time took (Original)     : {ori_time:.5f}s"})
+    log_dict.update({dict_keys[3]: f"Time took (Decomposed)   : {decomp_time:.5f}s"})
+    log_dict.update({dict_keys[4]: f"Original model accuray   : {ori_result}"})
+    log_dict.update({dict_keys[5]: f"Decomposed model accuray : {decomp_result}"})
+
+    return log_dict, dict_keys
 
 
 def run_decompose(
@@ -101,7 +135,7 @@ def run_decompose(
         )
     """
     t0 = time.monotonic()
-    validator.run()
+    ori_result = validator.run()[1]["model_acc"]
     origin_time_took = time.monotonic() - t0
     model = validator.model
     decomposed_model = deepcopy(validator.model.cpu())
@@ -112,27 +146,33 @@ def run_decompose(
     LOGGER.info(
         f"Decomposed with prunning step: {args.prune_step}, decomposition loss threshold: {args.loss_thr}"
     )
-    LOGGER.info(f"  Original # of param: {count_param(model)}")
-    LOGGER.info(f"Decomposed # of param: {count_param(decomposed_model)}")
 
     decomposed_model.to(device)
     decomposed_model.eval()
 
     validator.model = decomposed_model
     t0 = time.monotonic()
-    val_result = validator.run()
-    val_time_took = time.monotonic() - t0
+    decomposed_result = validator.run()[1]["model_acc"]
+    decomposed_time_took = time.monotonic() - t0
 
-    LOGGER.info(f"Time took (Original) : {origin_time_took:.5f}s")
-    LOGGER.info(f"Time took (Validation) : {val_time_took:.5f}s")
+    log_dict, log_keys = log_result(
+        ori_param=count_param(model),
+        decomp_param=count_param(decomposed_model),
+        ori_time=origin_time_took,
+        decomp_time=decomposed_time_took,
+        ori_result=ori_result,
+        decomp_result=decomposed_result,
+    )
+
+    for key in log_keys:
+        LOGGER.info(log_dict[key])
+
     if args.log:
         log_file = os.path.join(args.resume, "decompose_log.txt")
         with open(log_file, "w") as f:
-            f.write(
-                f"Original # of param: {count_param(model)} \nDecomposed # of param: {count_param(decomposed_model)} \nTime took : {val_time_took:.5f}s \nTime took"
-            )
+            f.writelines([log_dict[key] for key in log_keys])
 
-    return decomposed_model, val_result
+    return decomposed_model, decomposed_result
 
 
 if __name__ == "__main__":
@@ -159,11 +199,10 @@ if __name__ == "__main__":
 
     weight_dir = Path(os.path.join("decompose", resume_dir))
     weight_dir.mkdir(parents=True, exist_ok=True)
-    filename = Path("decomposed_model.pt")
+    filename = Path(args.file_name)
 
     weight_path = weight_dir / filename
     LOGGER.info(f"Decomposed model saved in {colorstr('cyan', 'bold', weight_path)}")
-    print(weight_path)
 
     torch.save({"model": decomp_model.cpu().half(), "decomposed": True}, weight_path)
 

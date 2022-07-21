@@ -79,7 +79,9 @@ def load_decomposed_model(
     return model
 
 
-def initialize_params(model: Any, state_dict: Dict[str, Any], with_mask: bool = True) -> None:
+def initialize_params(
+    model: Any, state_dict: Dict[str, Any], with_mask: bool = True
+) -> None:
     """Initialize weights and masks."""
     model_dict = model.state_dict()
     # 1. filter out unnecessary keys
@@ -100,8 +102,7 @@ def get_model_hash(model: nn.Module) -> str:
 def get_pretrained_model_info(model: nn.Module) -> Dict[str, str]:
     """Read yaml file and get pretrained model.
 
-    Read yaml file, get pretrained model information(model_dir, gdrive_link) given
-    hash.
+    Read yaml file, get pretrained model information(model_dir, gdrive_link) given hash.
     """
     model_hash = str(get_model_hash(model))
     with open("config/pretrained_model_url.yaml", mode="r") as f:

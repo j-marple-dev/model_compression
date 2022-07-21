@@ -498,8 +498,8 @@ class ChannelwisePruning(Pruner):
     def new_allzero_params(self, exclude_params: Set[int]) -> bool:
         """Check and exclude zeroed params.
 
-        Check if there is params all zeroed and put into exclude params, return
-        whether there is zeored params.
+        Check if there is params all zeroed and put into exclude params, return whether
+        there is zeored params.
         """
         exclude_len = len(exclude_params)
         for i, (param, _) in enumerate(self.params_to_prune):
