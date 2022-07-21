@@ -11,10 +11,11 @@ import logging.handlers
 import os
 import random
 import sys
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
+from torch import nn
 import torch.nn.functional as F
 import torch.utils.data as data
 from torchvision.datasets import VisionDataset
@@ -51,7 +52,7 @@ def get_rand_bbox_coord(
 def to_onehot(labels: torch.Tensor, num_classes: int) -> torch.Tensor:
     """Convert index based labels into one-hot based labels.
 
-       If labels are one-hot based already(e.g. [0.9, 0.01, 0.03,...]), do nothing.
+    If labels are one-hot based already(e.g. [0.9, 0.01, 0.03,...]), do nothing.
     """
     if len(labels.size()) == 1:
         return F.one_hot(labels, num_classes).float()
@@ -71,10 +72,12 @@ def get_dataset(
 
     # preprocessing policies
     transform_train = getattr(
-        __import__("src.augmentation.policies", fromlist=[""]), transform_train,
+        __import__("src.augmentation.policies", fromlist=[""]),
+        transform_train,
     )(**transform_train_params)
     transform_test = getattr(
-        __import__("src.augmentation.policies", fromlist=[""]), transform_test,
+        __import__("src.augmentation.policies", fromlist=[""]),
+        transform_test,
     )(**transform_test_params)
 
     # pytorch dataset
@@ -90,7 +93,10 @@ def get_dataset(
 
 
 def get_dataloader(
-    trainset: VisionDataset, testset: VisionDataset, batch_size: int, n_workers: int,
+    trainset: VisionDataset,
+    testset: VisionDataset,
+    batch_size: int,
+    n_workers: int,
 ) -> Tuple[data.DataLoader, data.DataLoader]:
     """Get dataloader for training and testing."""
     trainloader = data.DataLoader(
@@ -147,3 +153,57 @@ def set_logger(
 def get_logger() -> logging.Logger:
     """Get logger instance."""
     return logging.getLogger("model_compression")
+
+
+def count_param(model: nn.Module) -> int:
+    """Count number of all parameters.
+
+    Args:
+        model: PyTorch model.
+
+    Return:
+        Sum of # of parameters
+    """
+    return sum(list(x.numel() for x in model.parameters()))
+
+
+def select_device(device: str = "", batch_size: Optional[int] = None) -> torch.device:
+    """Select torch device.
+
+    Args:
+        device: 'cpu' or '0' or '0, 1, 2, 3' format string.
+        batch_size: distribute batch to multiple gpus.
+
+    Returns:
+        A torch device.
+    """
+    cpu_request = device.lower() == "cpu"
+    if device and not cpu_request:
+        os.environ["CUDA_VISIBLE_DEVICES"] = device
+        assert torch.cuda.is_available(), (
+            "CUDA unavailable, invalid device %s requested" % device
+        )
+
+    cuda = False if cpu_request else torch.cuda.is_available()
+    if cuda:
+        c = 1024**2
+        ng = torch.cuda.device_count()
+        if ng > 1 and batch_size:
+            assert (
+                batch_size % ng == 0
+            ), "batch-size %g not multiple of GPU count %g" % (batch_size, ng)
+        x = [torch.cuda.get_device_properties(i) for i in range(ng)]
+        s = "Using CUDA "
+        for i in range(0, ng):
+            if i == 1:
+                s = " " * len(s)
+                print(
+                    "%sdevice%g _CudaDeviceProperties(name='%s', total_memory=%dMB)"
+                    % (s, i, x[i].name, x[i].total_memory / c)
+                )
+
+    else:
+        print("Using CPU")
+
+    print("")
+    return torch.device("cuda:0" if cuda else "cpu")

@@ -25,8 +25,11 @@ class SimpleNet(nn.Module):
         self.flatten = nn.Flatten()  # type: ignore
         self.fc1 = nn.Linear(128, num_classes)  # 5x5 image dimension
 
-    def _forward_impl(self, x: torch.Tensor):
-        """Actual forward procedures."""
+    def _forward_impl(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward procedures.
+
+        Actual forward procedures.
+        """
         out = self.conv1(x)
         out = self.conv2(out)
         out = F.max_pool2d(out, (2, 2))
@@ -43,5 +46,5 @@ class SimpleNet(nn.Module):
 
 
 def get_model(**kwargs: bool) -> nn.Module:
-    """Constructs a Simple model."""
+    """Construct a Simple model."""
     return SimpleNet(**kwargs)

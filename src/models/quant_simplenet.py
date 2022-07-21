@@ -45,5 +45,5 @@ class QuantizableSimpleNet(SimpleNet):
 
 
 def get_model(**kwargs: bool) -> nn.Module:
-    """Constructs a Simple model for quantization."""
+    """Construct a Simple model for quantization."""
     return QuantizableSimpleNet(**kwargs)

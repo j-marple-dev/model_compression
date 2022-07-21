@@ -131,6 +131,12 @@ dmypy.json
 # saved files while running
 save/*
 
+# Decomposed files
+decompose/*
+
 # caches
 wandb
 .DS_Store
+
+# Ignore Docker setting
+.last_exec_cont_id.txt

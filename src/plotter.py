@@ -35,8 +35,8 @@ class PruneStat(NamedTuple):
 class Plotter:
     """Plotter for models.
 
-       Currently, it only plots sparsity information of each layer of the model,
-       but it can be utilized for plotting all sort of infomration.
+    Currently, it only plots sparsity information of each layer of the model, but it can
+    be utilized for plotting all sort of infomration.
     """
 
     def __init__(self, wandb_log: bool) -> None:
@@ -135,8 +135,8 @@ class Plotter:
         x = np.arange(len(x_names))
 
         kargs_base = dict(width=self.width, edgecolor="black")
-        kargs_first_bar = {**kargs_base, "x": x - 1 / 2 * self.width}
-        kargs_second_bar = {**kargs_base, "x": x + 1 / 2 * self.width}
+        kargs_first_bar = {**kargs_base, "x": x - 1 / 2 * self.width}  # type: ignore
+        kargs_second_bar = {**kargs_base, "x": x + 1 / 2 * self.width}  # type: ignore
 
         # draw first bar(pruned, remained)
         kargs_pruned = dict(
@@ -200,7 +200,9 @@ class Plotter:
             )
 
     def _annotate_on_bar(
-        self, ax: matplotlib.axes.Axes, bars: List[matplotlib.axes.Axes.bar],
+        self,
+        ax: matplotlib.axes.Axes,
+        bars: List[matplotlib.axes.Axes.bar],
     ) -> None:
         """Attach a text label above each bar in rects, displaying its height."""
         for _, bar in enumerate(bars):
@@ -215,7 +217,7 @@ class Plotter:
         bottom_bars: List[matplotlib.axes.Axes.bar],
         addup_bottom_bar_data: bool = False,
     ) -> None:
-        """Same as annotate_on_bar but on top of stacked bars."""
+        """Same as annotate_on_bar but on top of stacked bars."""  # noqa: D401
         for i, bar in enumerate(bars):
             bottom_height = bottom_bars[i].get_height()
             height = bar.get_height()

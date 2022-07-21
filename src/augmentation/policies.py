@@ -19,7 +19,7 @@ IMAGENET_INFO = {"MEAN": (0.485, 0.456, 0.406), "STD": (0.229, 0.224, 0.225)}
 
 
 def simple_augment_train_cifar100() -> transforms.Compose:
-    """Simple data augmentation rule for training CIFAR100."""
+    """Return simple data augmentation rule for training CIFAR100."""
     return transforms.Compose(
         [
             transforms.RandomCrop(32, padding=4),
@@ -31,7 +31,7 @@ def simple_augment_train_cifar100() -> transforms.Compose:
 
 
 def simple_augment_test_cifar100() -> transforms.Compose:
-    """Simple data augmentation rule for testing CIFAR100."""
+    """Return simple data augmentation rule for testing CIFAR100."""
     return transforms.Compose(
         [
             transforms.ToTensor(),
@@ -41,7 +41,7 @@ def simple_augment_test_cifar100() -> transforms.Compose:
 
 
 def simple_augment_test_cifar100_224() -> transforms.Compose:
-    """Simple data augmentation rule for testing CIFAR100."""
+    """Return simple data augmentation rule for testing CIFAR100."""
     return transforms.Compose(
         [
             transforms.Resize(224),
@@ -52,7 +52,7 @@ def simple_augment_test_cifar100_224() -> transforms.Compose:
 
 
 def autoaugment_train_cifar100() -> transforms.Compose:
-    """Auto augmentation policy for training CIFAR100."""
+    """Return auto augmentation policy for training CIFAR100."""
     policies = [
         [("Invert", 0.1, 7), ("Contrast", 0.2, 6)],
         [("Rotate", 0.7, 2), ("TranslateX", 0.3, 9)],
@@ -93,7 +93,7 @@ def autoaugment_train_cifar100() -> transforms.Compose:
 
 
 def autoaugment_train_cifar100_riair() -> transforms.Compose:
-    """RIAIR's Auto augmentation policy for training CIFAR100."""
+    """Return RIAIR's Auto augmentation policy for training CIFAR100."""
     policies = [
         [("Invert", 0.2, 2)],
         [("Contrast", 0.4, 4)],
@@ -124,9 +124,11 @@ def autoaugment_train_cifar100_riair() -> transforms.Compose:
 
 
 def randaugment_train_cifar100(
-    n_select: int = 2, level: int = 14, n_level: int = 31,
+    n_select: int = 2,
+    level: int = 14,
+    n_level: int = 31,
 ) -> transforms.Compose:
-    """Random augmentation policy for training CIFAR100."""
+    """Return Random augmentation policy for training CIFAR100."""
     operators = [
         "Identity",
         "AutoContrast",
@@ -156,8 +158,11 @@ def randaugment_train_cifar100(
 
 
 def randaugment_train_cifar100_224(
-    n_select: int = 2, level: int = 14, n_level: int = 31,
+    n_select: int = 2,
+    level: int = 14,
+    n_level: int = 31,
 ) -> transforms.Compose:
+    """Return Random augmentation policy for training CIFAR100."""
     operators = [
         "Identity",
         "AutoContrast",

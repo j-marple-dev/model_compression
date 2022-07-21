@@ -49,7 +49,9 @@ class SequentialAugmentation(Augmentation):
     """Sequential augmentation class."""
 
     def __init__(
-        self, policies: List[Tuple[str, float, int]], n_level: int = 10,
+        self,
+        policies: List[Tuple[str, float, int]],
+        n_level: int = 10,
     ) -> None:
         """Initialize."""
         super(SequentialAugmentation, self).__init__(n_level)
@@ -69,7 +71,6 @@ class AutoAugmentation(Augmentation):
 
     References:
         https://arxiv.org/pdf/1805.09501.pdf
-
     """
 
     def __init__(
@@ -99,7 +100,6 @@ class RandAugmentation(Augmentation):
     References:
         RandAugment: Practical automated data augmentation with a reduced search space
         (https://arxiv.org/abs/1909.13719)
-
     """
 
     def __init__(
@@ -129,12 +129,12 @@ class CutMix(Dataset):
 
     References:
         https://github.com/ildoonet/cutmix
-
     """
 
     def __init__(
         self, dataset: Dataset, num_classes: int, beta: float = 1.0, prob: float = 0.5
     ) -> None:
+        """Initialize."""
         self.dataset = dataset
         self.num_classes = num_classes
         self.beta = beta
@@ -143,9 +143,9 @@ class CutMix(Dataset):
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """Convert image and label to a cutmix image and label.
 
-        Combine two training samples by cutting and pasting two images along a random box.
-        The ground truth label is also "mixed" via the combination ratio.
-        The combination ratio is sampled from a beta distribution.
+        Combine two training samples by cutting and pasting two images along a random
+        box. The ground truth label is also "mixed" via the combination ratio. The
+        combination ratio is sampled from a beta distribution.
         """
         img, label = self.dataset[index]  # label: int
         label = torch.tensor([label], dtype=torch.long)
@@ -171,4 +171,5 @@ class CutMix(Dataset):
         return img, label_onehot.squeeze_(0)
 
     def __len__(self) -> int:
-        return len(self.dataset)
+        """Get length of dataset."""
+        return len(self.dataset)  # type: ignore
