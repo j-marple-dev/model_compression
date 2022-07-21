@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-6-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 ## Contents
@@ -452,6 +452,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/HSShin0"><img src="https://avatars0.githubusercontent.com/u/44793742?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Hyungseok Shin</b></sub></a><br /><a href="https://github.com/j-marple-dev/model_compression/commits?author=HSShin0" title="Code">💻</a></td>
     <td align="center"><a href="https://www.linkedin.com/in/juhee-lee-393342126/"><img src="https://avatars0.githubusercontent.com/u/18753708?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Juhee Lee</b></sub></a><br /><a href="https://github.com/j-marple-dev/model_compression/commits?author=Ingenjoy" title="Code">💻</a></td>
     <td align="center"><a href="https://limjk.ai"><img src="https://avatars.githubusercontent.com/u/10356193?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Jongkuk Lim</b></sub></a><br /><a href="https://github.com/j-marple-dev/model_compression/commits?author=JeiKeiLim" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/ulken94"><img src="https://avatars.githubusercontent.com/u/58245037?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Haneol Kim</b></sub></a><br /><a href="https://github.com/j-marple-dev/model_compression/commits?author=ulken94" title="Code">💻</a></td>
   </tr>
 </table>
 
